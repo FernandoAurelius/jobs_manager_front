@@ -1,24 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api from '@/plugins/axios'
+import type { PurchaseOrderLine, DeliveryAllocation } from '@/types/purchasing'
 
 export interface Job {
   id: string
   name: string
-}
-
-export interface PurchaseOrderLine {
-  id: string
-  job_id?: string
-  job_name?: string
-  description: string
-  quantity: number
-  received_quantity: number
-  unit_cost: number | null
-  metal_type?: string
-  alloy?: string
-  specifics?: string
-  location?: string
 }
 
 export interface PurchaseOrder {
@@ -30,11 +17,7 @@ export interface PurchaseOrder {
   lines: PurchaseOrderLine[]
 }
 
-export interface AllocationData {
-  job_id: string
-  quantity: number
-  retail_rate: number
-}
+export type AllocationData = DeliveryAllocation
 
 export interface LineAllocation {
   total_received: number
