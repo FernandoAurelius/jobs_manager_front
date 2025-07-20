@@ -339,10 +339,8 @@ body {
   @apply p-4 space-y-3;
 }
 
-.jobs-grid {
-  @apply grid grid-cols-2 gap-3 items-start;
-  grid-auto-rows: min-content;
-}
+/* Removed .jobs-grid - now using Tailwind space-y-3 for single column layout */
+/* To switch back to 2-column, change space-y-3 to grid grid-cols-2 gap-3 in KanbanColumn.vue */
 
 .job-card {
   @apply bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-md transition-all duration-200 cursor-grab flex flex-col;
@@ -382,9 +380,7 @@ body {
     @apply min-w-[350px] max-w-[350px];
   }
 
-  .jobs-grid {
-    @apply grid-cols-1 gap-2;
-  }
+  /* Removed .jobs-grid mobile override - now handled via Tailwind in component */
 
   .job-card {
     @apply p-2;

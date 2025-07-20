@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import type { DashboardStats } from '@/types/dashboard.types'
+import type { DashboardStats } from '@/api/local/schemas'
 
 export function useDashboard() {
   const authStore = useAuthStore()

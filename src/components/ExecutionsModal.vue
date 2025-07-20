@@ -25,8 +25,16 @@
               <td class="px-4 py-2">{{ exec.duration }}</td>
               <td class="px-4 py-2 text-red-600">{{ exec.exception || '-' }}</td>
             </tr>
-            <tr v-if="paginatedExecutions.length === 0">
+            <tr v-if="paginatedExecutions.length === 0 && !isLoading">
               <td colspan="5" class="text-center text-gray-400 py-4">No executions found.</td>
+            </tr>
+            <tr v-if="paginatedExecutions.length === 0 && isLoading">
+              <td colspan="5" class="text-center text-gray-400 py-4">
+                <div class="flex items-center justify-center gap-2">
+                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                  Executions are still loading, please wait
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -53,6 +61,7 @@ import { getDjangoJobExecutions, DjangoJobExecution } from '@/services/django-jo
 const executions = ref<DjangoJobExecution[]>([])
 const page = ref(1)
 const pageSize = 20
+const isLoading = ref(false)
 
 const totalPages = computed(() => Math.ceil(executions.value.length / pageSize))
 const paginatedExecutions = computed(() => {
@@ -73,7 +82,12 @@ function nextPage() {
 }
 
 async function fetchExecutions() {
-  executions.value = await getDjangoJobExecutions()
+  isLoading.value = true
+  try {
+    executions.value = await getDjangoJobExecutions()
+  } finally {
+    isLoading.value = false
+  }
 }
 onMounted(fetchExecutions)
 </script>

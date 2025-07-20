@@ -346,38 +346,23 @@ import { quoteService } from '@/services/quote.service'
 import type { QuotePreview, QuoteApplyResult } from '@/services/quote.service'
 import type { QuoteSheet } from '@/schemas/job.schemas'
 import { extractQuoteErrorMessage, logError } from '@/utils/error-handler'
+import { schemas } from '@/api/generated/api'
+import { QuoteDataSchema } from '@/api/local/schemas'
+import { z } from 'zod'
 
-interface QuoteData {
-  id: string
-  kind: 'quote'
-  rev: number
-  created: string
-  summary: {
-    cost: number
-    rev: number
-    hours: number
-  }
-  cost_lines: Array<{
-    id?: number
-    kind: string
-    desc: string
-    quantity: number
-    unit_cost: number
-    unit_rev: number
-  }>
-}
+type Job = z.infer<typeof schemas.Job>
+type QuoteData = z.infer<typeof QuoteDataSchema>
 
-import type { Job } from '@/types'
-
-interface Props {
-  quoteData?: QuoteData | null
-  isLoading?: boolean
-  job?: Job | null
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  isLoading: false,
-})
+const props = withDefaults(
+  defineProps<{
+    quoteData?: QuoteData | null
+    isLoading?: boolean
+    job?: Job | null
+  }>(),
+  {
+    isLoading: false,
+  },
+)
 
 const emit = defineEmits<{
   'quote-refreshed': [data: QuoteApplyResult | (QuoteSheet & { shouldReloadJob: boolean })]
@@ -444,7 +429,7 @@ async function handleLinkQuote() {
   isLinking.value = true
 
   debugLog('🍞 Showing loading toast for quote link')
-  toast.loading('Linking spreadsheet...', {
+  toast.info('Linking spreadsheet...', {
     description: 'Creating and configuring quote spreadsheet',
     id: 'quote-link',
   })
@@ -503,7 +488,7 @@ async function handleRefreshSpreadsheet() {
   isRefreshing.value = true
 
   debugLog('🍞 Showing loading toast for quote refresh')
-  toast.loading('Checking for updates...', {
+  toast.info('Checking for updates...', {
     description: 'Verifying spreadsheet changes',
     id: 'quote-refresh',
   })

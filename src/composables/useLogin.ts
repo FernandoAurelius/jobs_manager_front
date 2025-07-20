@@ -1,7 +1,11 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import type { LoginCredentials } from '@/types/auth.types'
+import { useAuthStore } from '../stores/auth'
+import { schemas } from '../api/generated/api'
+import type { z } from 'zod'
+
+// Use the existing CustomTokenObtainPair schema for login credentials
+type LoginCredentials = z.infer<typeof schemas.CustomTokenObtainPair>
 
 export function useLogin() {
   const router = useRouter()

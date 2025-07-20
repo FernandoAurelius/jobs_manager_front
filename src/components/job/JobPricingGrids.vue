@@ -90,17 +90,16 @@ import { debugLog } from '@/utils/debug'
 
 import { ref, watch } from 'vue'
 import SimpleTotalTable from './SimpleTotalTable.vue'
-import type { JobData, CompanyDefaults } from '@/services/job-rest.service'
+import { schemas } from '@/api/generated/api'
+import { PricingSectionSchema } from '@/api/local/schemas'
+import { z } from 'zod'
 
-interface PricingSection {
-  time: number
-  materials: number
-  adjustments: number
-  total: number
-}
+type CompanyDefaults = z.infer<typeof schemas.CompanyDefaults>
+type Job = z.infer<typeof schemas.Job>
+type PricingSection = z.infer<typeof PricingSectionSchema>
 
 interface Props {
-  jobData: JobData
+  jobData: Job
   latestPricings: Record<string, unknown>
   companyDefaults: CompanyDefaults | null
 }

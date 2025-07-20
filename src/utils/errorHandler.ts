@@ -1,13 +1,4 @@
-export interface ApiError {
-  response?: {
-    data?: {
-      error?: string
-      message?: string
-      details?: string
-    }
-  }
-  message?: string
-}
+import { type ApiError } from '@/api/local/schemas'
 
 export function extractErrorMessage(error: unknown, fallbackMessage = 'An error occurred'): string {
   if (!error) {

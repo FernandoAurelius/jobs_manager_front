@@ -11,7 +11,10 @@
       </div>
 
       <div v-if="isLoading" class="text-center py-10">
-        <p>Loading providers...</p>
+        <div class="flex items-center justify-center gap-2">
+          <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+          AI providers are still loading, please wait
+        </div>
       </div>
       <div
         v-else-if="error"
@@ -107,7 +110,13 @@ import { toast } from 'vue-sonner'
 
 import AIProviderFormModal from '@/components/admin/AIProviderFormModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import { aiProviderService, type AIProvider } from '@/services/aiProviderService'
+import { AIProviderService } from '@/services/aiProviderService'
+import { schemas } from '@/api/generated/api'
+import type { z } from 'zod'
+
+type AIProvider = z.infer<typeof schemas.AIProvider>
+
+const aiProviderService = AIProviderService.getInstance()
 
 const providers = ref<AIProvider[]>([])
 const isLoading = ref(false)
@@ -125,7 +134,7 @@ const fetchProviders = async () => {
   error.value = null
   try {
     providers.value = await aiProviderService.getProviders()
-  } catch (error: unknown) {
+  } catch {
     const message =
       'Failed to load AI providers. Please check the network connection or backend server.'
     error.value = message
@@ -153,10 +162,28 @@ const closeModal = () => {
 const handleSave = async (providerData: AIProvider) => {
   try {
     if (providerData.id) {
-      await aiProviderService.updateProvider(providerData.id, providerData)
+      // For update, we need to convert to the update format
+      const updateData = {
+        name: providerData.name,
+        provider_type: providerData.provider_type,
+        api_key: providerData.api_key,
+        api_url: providerData.api_url,
+        model_name: providerData.model_name,
+        default: providerData.default,
+      }
+      await aiProviderService.updateProvider(providerData.id, updateData)
       toast.success('Provider updated successfully.')
     } else {
-      await aiProviderService.createProvider(providerData)
+      // For create, use the create format
+      const createData = {
+        name: providerData.name,
+        provider_type: providerData.provider_type,
+        api_key: providerData.api_key,
+        api_url: providerData.api_url,
+        model_name: providerData.model_name,
+        default: providerData.default || false,
+      }
+      await aiProviderService.createProvider(createData)
       toast.success('Provider created successfully.')
     }
     closeModal()
@@ -174,7 +201,7 @@ const toggleDefault = async (provider: AIProvider) => {
 
   isTogglingDefault.value = true
   try {
-    await aiProviderService.setDefaultProvider(provider.id)
+    await aiProviderService.setDefaultProvider(provider.id, provider)
     toast.success(`'${provider.name}' is now the default provider.`)
     await fetchProviders()
   } catch (error: unknown) {

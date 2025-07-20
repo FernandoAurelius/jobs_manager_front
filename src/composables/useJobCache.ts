@@ -1,20 +1,15 @@
 import { ref, computed } from 'vue'
-import type { JobData } from '@/services/job-rest.service'
+import type { JobDetailResponse } from '@/api/generated/api'
 import { debugLog } from '@/utils/debug'
-
-interface CacheEntry {
-  data: JobData
-  timestamp: Date
-  version: number
-}
+import type { JobCacheEntry } from '../api/local/schemas'
 
 export function useJobCache() {
-  const cache = ref<Map<string, CacheEntry>>(new Map())
+  const cache = ref<Map<string, JobCacheEntry>>(new Map())
   const currentVersion = ref(1)
 
   const DEFAULT_TTL = 5 * 60 * 1000
 
-  const isCacheValid = (entry: CacheEntry, ttl: number = DEFAULT_TTL): boolean => {
+  const isCacheValid = (entry: JobCacheEntry, ttl: number = DEFAULT_TTL): boolean => {
     const now = new Date().getTime()
     const entryTime = entry.timestamp.getTime()
     const isWithinTTL = now - entryTime < ttl
@@ -23,7 +18,7 @@ export function useJobCache() {
     return isWithinTTL && isCurrentVersion
   }
 
-  const getCachedJob = (jobId: string, ttl?: number): JobData | null => {
+  const getCachedJob = (jobId: string, ttl?: number): JobDetailResponse | null => {
     const entry = cache.value.get(jobId)
 
     if (!entry) {
@@ -41,8 +36,8 @@ export function useJobCache() {
     return entry.data
   }
 
-  const setCachedJob = (jobId: string, jobData: JobData): void => {
-    const entry: CacheEntry = {
+  const setCachedJob = (jobId: string, jobData: JobDetailResponse): void => {
+    const entry: JobCacheEntry = {
       data: { ...jobData },
       timestamp: new Date(),
       version: currentVersion.value,
@@ -68,7 +63,7 @@ export function useJobCache() {
     debugLog('📦 Cache cleared')
   }
 
-  const updateCachedJob = (jobId: string, updates: Partial<JobData>): void => {
+  const updateCachedJob = (jobId: string, updates: Partial<JobDetailResponse>): void => {
     const entry = cache.value.get(jobId)
 
     if (entry && isCacheValid(entry)) {
@@ -104,7 +99,7 @@ export function useJobCache() {
     }
   })
 
-  const withCache = async <T extends JobData>(
+  const withCache = async <T extends JobDetailResponse>(
     jobId: string,
     loadFunction: () => Promise<T>,
     ttl?: number,

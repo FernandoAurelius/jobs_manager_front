@@ -1,31 +1,27 @@
 <template>
   <AppLayout>
-    <div
-      class="sticky top-0 bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 backdrop-blur-md border-b border-blue-500/20"
-    >
+    <div class="sticky top-0 bg-white backdrop-blur-md border-b border-gray-200">
       <div class="px-3 sm:px-4 lg:px-6 py-2 sm:py-3">
-        <div class="space-y-3 lg:space-y-0 py-0.5">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <div
-              class="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-center sm:text-left"
-            >
-              <h1 class="text-lg sm:text-xl lg:text-2xl font-bold text-white">Daily Timesheet</h1>
-              <div
-                class="flex items-center justify-center sm:justify-start space-x-2 text-white/80 mt-1 sm:mt-0"
-              >
+        <div class="flex items-center justify-center pt-2">
+          <div class="flex items-center space-x-6 sm:space-x-8 lg:space-x-12">
+            <!-- Left: Title and Date -->
+            <div class="flex items-center space-x-4">
+              <h1 class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
+                Daily Timesheet
+              </h1>
+              <div class="flex items-center space-x-2 text-gray-600">
                 <Calendar class="h-4 w-4 sm:h-5 sm:w-5" />
                 <span class="text-xs sm:text-sm">{{ formatDisplayDate(selectedDate) }}</span>
               </div>
             </div>
 
-            <div
-              class="flex items-center justify-center sm:justify-end space-x-2 sm:space-x-3 mt-2 sm:mt-0"
-            >
+            <!-- Right: Action Buttons -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
               <Button
                 @click="openMetricsModal"
                 variant="ghost"
                 size="sm"
-                class="text-white hover:bg-blue-500/20 text-xs sm:text-sm"
+                class="text-gray-600 hover:bg-gray-100 text-xs sm:text-sm"
               >
                 <BarChart3 class="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
                 <span class="hidden sm:inline">Metrics</span>
@@ -35,7 +31,7 @@
                 @click="refreshData"
                 variant="ghost"
                 size="sm"
-                class="text-white hover:bg-blue-500/20 text-xs sm:text-sm"
+                class="text-gray-600 hover:bg-gray-100 text-xs sm:text-sm"
                 :disabled="loading"
               >
                 <RefreshCw
@@ -49,44 +45,45 @@
                 @click="goToToday"
                 variant="default"
                 size="sm"
-                class="bg-blue-600 hover:bg-blue-700 text-white border-blue-500 font-medium text-xs sm:text-sm"
+                class="bg-gray-600 hover:bg-gray-700 text-white border-gray-500 font-medium text-xs sm:text-sm"
               >
                 <Home class="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
                 <span class="hidden sm:inline">Today</span>
               </Button>
             </div>
           </div>
+        </div>
 
-          <div class="flex items-center justify-center space-x-2 sm:space-x-4">
-            <Button
-              @click="navigateDate(-1)"
-              variant="ghost"
-              size="sm"
-              class="text-white hover:bg-blue-500/20 px-2 sm:px-4"
-            >
-              <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" />
-              <span class="hidden sm:inline ml-1">Previous</span>
-            </Button>
+        <!-- Navigation Row -->
+        <div class="flex items-center justify-center space-x-2 sm:space-x-4 mt-3">
+          <Button
+            @click="navigateDate(-1)"
+            variant="ghost"
+            size="sm"
+            class="text-gray-600 hover:bg-gray-100 px-2 sm:px-4"
+          >
+            <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" />
+            <span class="hidden sm:inline ml-1">Previous</span>
+          </Button>
 
-            <div class="flex items-center space-x-2">
-              <input
-                type="date"
-                v-model="selectedDate"
-                @change="loadData"
-                class="px-2 sm:px-3 py-1 sm:py-2 bg-slate-800/50 border border-blue-500/30 rounded-md text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-32 sm:w-auto"
-              />
-            </div>
-
-            <Button
-              @click="navigateDate(1)"
-              variant="ghost"
-              size="sm"
-              class="text-white hover:bg-blue-500/20 px-2 sm:px-4"
-            >
-              <span class="hidden sm:inline mr-1">Next</span>
-              <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" />
-            </Button>
+          <div class="flex items-center space-x-2">
+            <input
+              type="date"
+              v-model="selectedDate"
+              @change="loadData"
+              class="px-2 sm:px-3 py-1 sm:py-2 bg-white border border-gray-300 rounded-md text-gray-900 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-gray-500 w-32 sm:w-auto"
+            />
           </div>
+
+          <Button
+            @click="navigateDate(1)"
+            variant="ghost"
+            size="sm"
+            class="text-gray-600 hover:bg-gray-100 px-2 sm:px-4"
+          >
+            <span class="hidden sm:inline mr-1">Next</span>
+            <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" />
+          </Button>
         </div>
       </div>
     </div>
@@ -95,7 +92,7 @@
       <div v-if="loading" class="flex items-center justify-center py-8 sm:py-12">
         <div class="text-center">
           <div
-            class="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-blue-600 mx-auto mb-4"
+            class="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-gray-600 mx-auto mb-4"
           ></div>
           <p class="text-gray-600 text-sm sm:text-base">Loading timesheet data...</p>
         </div>
@@ -124,22 +121,22 @@
               <thead class="bg-gray-50 sticky top-0">
                 <tr>
                   <th
-                    class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    class="px-1 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
                     Staff Member
                   </th>
                   <th
-                    class="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    class="px-1 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
                     Hours
                   </th>
                   <th
-                    class="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    class="px-1 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
                     Status
                   </th>
                   <th
-                    class="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    class="px-1 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
                     Actions
                   </th>

@@ -151,41 +151,17 @@ import { debugLog } from '@/utils/debug'
 
 import { ref, computed, watch } from 'vue'
 import { X } from 'lucide-vue-next'
+import type { StaffMemberUI, AbsenceForm, AbsenceSummary } from '@/api/local/schemas'
 
-interface Staff {
-  id: string
-  name: string
-  initials: string
-}
-
-interface AbsenceForm {
-  staffId: string
-  absenceType: string
-  startDate: string
-  endDate: string
-  hoursPerDay: string
-  customHours?: number
-  description: string
-}
-
-interface AbsenceSummary {
-  duration: string
-  totalHours: number
-  workingDays: number
-}
-
-interface Props {
+defineProps<{
   isOpen: boolean
-  availableStaff: Staff[]
-}
+  availableStaff: StaffMemberUI[]
+}>()
 
-interface Emits {
-  (e: 'close'): void
-  (e: 'absenceAdded', absence: AbsenceForm): void
-}
-
-defineProps<Props>()
-const emit = defineEmits<Emits>()
+const emit = defineEmits<{
+  close: []
+  absenceAdded: [absence: AbsenceForm]
+}>()
 
 const loading = ref(false)
 const error = ref('')

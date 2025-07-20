@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="jobCardRef"
     class="job-card"
     :class="{
       'cursor-grabbing': isDragging,
@@ -8,10 +9,15 @@
       'border-blue-400 hover:border-blue-500': isMovementModeActive && !isJobSelectedForMovement,
       'cursor-pointer': isMovementModeActive,
       'cursor-grab': !isDragging && !isMovementModeActive,
+      'staff-drop-target': isStaffDragOver,
     }"
     :data-id="job.id || ''"
     :data-job-id="job.id || ''"
     @click="handleClick"
+    @dragover="handleDragOver"
+    @drop="handleDrop"
+    @dragenter="handleDragEnter"
+    @dragleave="handleDragLeave"
   >
     <div
       v-if="isMovementModeActive"
@@ -21,6 +27,31 @@
 
     <div class="flex justify-between items-center mb-1">
       <span class="text-xs font-semibold text-blue-600">#{{ job.job_number }}</span>
+      
+      <!-- Staff avatars moved next to job number -->
+      <div
+        ref="jobStaffContainerRef"
+        class="flex gap-1 items-center min-h-[20px] p-1 rounded transition-colors"
+        :class="{
+          'bg-blue-50 border border-blue-300': isStaffDragTarget,
+          'bg-gray-50 border border-dashed border-gray-300': (!job.people || job.people.length === 0) && !isStaffDragTarget,
+        }"
+      >
+        <StaffAvatar
+          v-for="staff in job.people || []"
+          :key="staff.id"
+          :staff="staff"
+          size="sm"
+          :title="staff.display_name"
+          :data-staff-id="staff.id"
+        />
+        <div
+          v-if="!job.people || job.people.length === 0"
+          class="text-[10px] text-gray-400 px-1"
+        >
+          +
+        </div>
+      </div>
     </div>
 
     <h4 class="font-medium text-gray-900 text-xs mb-1 leading-tight">
@@ -37,30 +68,6 @@
       size="xs"
       class="mb-2 text-[10px]"
     />
-
-    <div
-      ref="jobStaffContainerRef"
-      class="flex gap-1 mt-auto h-4 p-1 rounded border border-dashed border-gray-300 transition-colors items-center"
-      :class="{
-        'border-blue-400 bg-blue-50': isStaffDragTarget,
-        'bg-gray-50': !job.people || job.people.length === 0,
-      }"
-    >
-      <StaffAvatar
-        v-for="staff in job.people || []"
-        :key="staff.id"
-        :staff="staff"
-        size="sm"
-        :title="staff.display_name"
-        :data-staff-id="staff.id"
-      />
-      <div
-        v-if="!job.people || job.people.length === 0"
-        class="text-xs text-gray-400 flex items-center justify-center w-full font-medium"
-      >
-        +
-      </div>
-    </div>
   </div>
 </template>
 
@@ -70,31 +77,86 @@ import StaffAvatar from '@/components/StaffAvatar.vue'
 import StatusBadge from '@/components/kanban/StatusBadge.vue'
 import { useJobCard } from '@/composables/useJobCard'
 import { statusNameMap } from '@/utils/statusMappings'
-import type { Job } from '@/types'
+import { api, schemas } from '@/api/generated/api'
+import { z } from 'zod'
 
-interface JobCardProps {
-  job: Job
-  isDragging?: boolean
-  isStaffDragTarget?: boolean
-  isMovementModeActive?: boolean
-  isJobSelectedForMovement?: boolean
-}
+type KanbanJob = z.infer<typeof schemas.KanbanJob>
 
-interface JobCardEmits {
-  (e: 'click', job: Job): void
-  (e: 'job-ready', payload: { jobId: string; element: HTMLElement }): void
-  (e: 'job-selected-for-movement', job: Job): void
-}
+const props = withDefaults(
+  defineProps<{
+    job: KanbanJob
+    isDragging?: boolean
+    isStaffDragTarget?: boolean
+    isMovementModeActive?: boolean
+    isJobSelectedForMovement?: boolean
+  }>(),
+  {
+    isDragging: false,
+    isStaffDragTarget: false,
+    isMovementModeActive: false,
+    isJobSelectedForMovement: false,
+  },
+)
 
-const props = withDefaults(defineProps<JobCardProps>(), {
-  isDragging: false,
-  isStaffDragTarget: false,
-  isMovementModeActive: false,
-  isJobSelectedForMovement: false,
-})
-const emit = defineEmits<JobCardEmits>()
+const emit = defineEmits<{
+  click: [job: KanbanJob]
+  'job-ready': [payload: { jobId: string; element: HTMLElement }]
+  'job-selected-for-movement': [job: KanbanJob]
+  'card-ready': [payload: { jobId: string; element: HTMLElement }]
+  'staff-assigned': [payload: { staffId: string; jobId: string }]
+}>()
 
 const jobStaffContainerRef = ref<HTMLElement>()
+const jobCardRef = ref<HTMLElement>()
+const isStaffDragOver = ref(false)
+
+// Staff drag and drop handlers
+const handleDragOver = (event: DragEvent): void => {
+  event.preventDefault()
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'copy'
+  }
+}
+
+const handleDragEnter = (event: DragEvent): void => {
+  event.preventDefault()
+  isStaffDragOver.value = true
+}
+
+const handleDragLeave = (event: DragEvent): void => {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  const x = event.clientX
+  const y = event.clientY
+  
+  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+    isStaffDragOver.value = false
+  }
+}
+
+const handleDrop = async (event: DragEvent): Promise<void> => {
+  event.preventDefault()
+  event.stopPropagation()
+  isStaffDragOver.value = false
+  
+  const staffId = event.dataTransfer?.getData('text/plain')
+  
+  if (staffId && props.job.id) {
+    try {
+      await api.job_api_job_assignment_create({
+        job_id: props.job.id,
+        staff_id: staffId
+      }, {
+        params: {
+          job_id: props.job.id
+        }
+      })
+      
+      emit('staff-assigned', { staffId, jobId: props.job.id })
+    } catch (error) {
+      console.error('Error assigning staff to job:', error)
+    }
+  }
+}
 
 const { handleClick } = useJobCard(props.job, emit)
 
@@ -107,11 +169,19 @@ const truncatedJobName = computed(() => {
 })
 
 onMounted(() => {
-  const cardElement = document.querySelector(`[data-id="${props.job.id}"]`) as HTMLElement
-  if (cardElement && jobStaffContainerRef.value) {
+  // Emitir evento para o sistema de drag and drop do job (staff container)
+  if (jobStaffContainerRef.value) {
     emit('job-ready', {
       jobId: props.job.id.toString(),
       element: jobStaffContainerRef.value,
+    })
+  }
+  
+  // Emitir evento para o sistema de drag and drop do card inteiro
+  if (jobCardRef.value) {
+    emit('card-ready', {
+      jobId: props.job.id.toString(),
+      element: jobCardRef.value,
     })
   }
 })
@@ -177,6 +247,26 @@ onMounted(() => {
 
 .job-card .border-dashed {
   border-style: dashed !important;
+}
+
+.staff-drop-target {
+  background-color: #eff6ff !important;
+  border-color: #3b82f6 !important;
+  transform: scale(1.02);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.staff-item {
+  cursor: grab;
+  user-select: none;
+}
+
+.staff-item:active {
+  cursor: grabbing;
+}
+
+.staff-item * {
+  pointer-events: none;
 }
 
 .job-card .gap-1 {

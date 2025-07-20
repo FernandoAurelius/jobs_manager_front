@@ -169,7 +169,11 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle, AlertCircle, AlertTriangle, Clock, Edit, Eye } from 'lucide-vue-next'
 import { formatHours } from '@/services/daily-timesheet.service'
-import type { StaffDailyData } from '@/services/daily-timesheet.service'
+import { z } from 'zod'
+import { schemas } from '@/api/generated/api'
+
+// Use generated type from Zodios API
+type StaffDailyData = z.infer<typeof schemas.StaffDailyData>
 
 interface Props {
   staff: StaffDailyData

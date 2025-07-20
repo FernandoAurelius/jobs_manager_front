@@ -1,6 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { CompanyDefaultsService, type CompanyDefaults } from '@/services/company-defaults.service'
+import { CompanyDefaultsService } from '@/services/company-defaults.service'
+import { schemas } from '@/api/generated/api'
+import type { z } from 'zod'
+
+type CompanyDefaults = z.infer<typeof schemas.CompanyDefaults>
 
 export const useCompanyDefaultsStore = defineStore('companyDefaults', () => {
   const companyDefaults = ref<CompanyDefaults | null>(null)

@@ -54,6 +54,20 @@
                 <div class="text-xs mt-1 opacity-70">
                   {{ formatTime(message.timestamp) }}
                 </div>
+
+                <!-- MCP Tool Details for Assistant Messages -->
+                <div v-if="message.senderId !== currentUserId && message.metadata" class="mt-3">
+                  <McpToolDetails :metadata="message.metadata" />
+                </div>
+              </div>
+            </div>
+            <!-- Loading indicator for AI response -->
+            <div v-if="isLoading" class="flex justify-start">
+              <div class="rounded-lg p-4 max-w-md shadow-sm bg-white text-gray-800">
+                <div class="flex items-center space-x-2">
+                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                  <span>AI is processing your request...</span>
+                </div>
               </div>
             </div>
           </div>
@@ -107,6 +121,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Send, Paperclip, RotateCcw } from 'lucide-vue-next'
 import AppLayout from '@/components/AppLayout.vue'
+import McpToolDetails from '@/components/chat/McpToolDetails.vue'
 import { QuoteChatService, type VueChatMessage } from '@/services/quote-chat.service'
 import { toast } from 'vue-sonner'
 

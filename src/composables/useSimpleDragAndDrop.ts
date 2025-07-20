@@ -1,35 +1,7 @@
 import { ref, nextTick } from 'vue'
 import Sortable from 'sortablejs'
 import { debugLog } from '@/utils/debug'
-
-interface DragEventData {
-  jobId: string
-  fromStatus: string
-  toStatus: string
-}
-
-interface JobCardElement {
-  id: string
-  classes: string
-  hasDataId: boolean
-}
-
-interface SortableOptions {
-  group: string
-  animation: number
-  ghostClass: string
-  chosenClass: string
-  dragClass: string
-  draggable: string
-  disabled: boolean
-  delay: number
-  touchStartThreshold: number
-  forceFallback: boolean
-  fallbackOnBody: boolean
-  onStart: (evt: Sortable.SortableEvent) => void
-  onEnd: (evt: Sortable.SortableEvent) => void
-  onMove: (evt: Sortable.MoveEvent) => boolean
-}
+import type { DragEventData, JobCardElement, SortableOptions } from '../api/local/schemas'
 
 const SORTABLE_CONFIG = {
   GROUP: 'jobs',

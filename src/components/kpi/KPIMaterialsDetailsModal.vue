@@ -210,17 +210,18 @@ import {
   DialogDescription,
   DialogClose,
 } from '@/components/ui/dialog'
-import type { DayKPI } from '@/services/kpi.service'
+import { schemas } from '@/api/generated/api'
+import { z } from 'zod'
 import { kpiService } from '@/services/kpi.service'
 
-interface Props {
+type DayKPI = z.infer<typeof schemas.KPIDayData>
+
+const props = defineProps<{
   calendarData: Record<string, DayKPI> | null
   year: number
   month: number
   isOpen: boolean
-}
-
-const props = defineProps<Props>()
+}>()
 
 const emit = defineEmits<{
   'update:isOpen': [value: boolean]

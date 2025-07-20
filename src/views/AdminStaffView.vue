@@ -20,11 +20,11 @@
               New Staff
             </Button>
           </div>
-          <div
-            v-if="loading"
-            class="flex-1 flex items-center justify-center text-2xl text-slate-400"
-          >
-            Loading…
+          <div v-if="loading" class="flex-1 flex items-center justify-center">
+            <div class="flex items-center space-x-2 text-lg text-gray-600">
+              <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+              <span>Staff members are still loading, please wait</span>
+            </div>
           </div>
           <div
             v-else
@@ -54,9 +54,9 @@
                     <div
                       class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-lg font-bold text-indigo-700 border-2 border-indigo-300 overflow-hidden"
                     >
-                      <template v-if="staff.icon_url">
+                      <template v-if="staff.icon">
                         <img
-                          :src="staff.icon_url"
+                          :src="staff.icon"
                           alt="Profile image"
                           class="object-cover w-full h-full"
                         />
@@ -98,7 +98,7 @@
                 </tr>
                 <tr v-if="!filteredStaff.length">
                   <td colspan="9" class="text-center py-8 text-slate-400 text-lg">
-                    No staff found.
+                    No staff found for the current search criteria.
                   </td>
                 </tr>
               </tbody>
@@ -129,8 +129,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useStaffApi } from '@/composables/useStaffApi'
 import StaffFormModal from '@/components/StaffFormModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import type { Staff } from '@/types/staff'
+import { schemas } from '@/api/generated/api'
 import { PencilLine, Trash2 } from 'lucide-vue-next'
+import type { z } from 'zod'
+
+type Staff = z.infer<typeof schemas.Staff>
 
 const { listStaff, removeStaff } = useStaffApi()
 const staffList = ref<Staff[]>([])
@@ -178,6 +181,7 @@ function openCreate() {
   showModal.value = true
 }
 function editStaff(staff: Staff) {
+  console.log('AdminStaffView - Editing staff:', staff)
   selectedStaff.value = staff
   showModal.value = true
 }
@@ -206,7 +210,9 @@ async function deleteStaff() {
 
 async function fetchStaff() {
   loading.value = true
-  staffList.value = await listStaff()
+  // For admin view, show all staff including those without valid IMS IDs
+  staffList.value = await listStaff(false) // false = show all staff
+  console.log('AdminStaffView - Staff data received from API:', staffList.value)
   loading.value = false
 }
 onMounted(fetchStaff)

@@ -14,8 +14,8 @@
     :data-staff-id="staff.id"
   >
     <img
-      v-if="staff.avatar_url && staff.avatar_url !== null"
-      :src="staff.avatar_url"
+      v-if="staff.avatarUrl && staff.avatarUrl !== null"
+      :src="staff.avatarUrl"
       :alt="staff.display_name"
       class="w-full h-full object-cover"
     />
@@ -32,35 +32,37 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Staff } from '@/types'
-import type { StaffAvatarSize } from '@/types/staff'
+import { StaffAvatarSchema, StaffAvatarSizeSchema } from '@/api/local/schemas'
+import { z } from 'zod'
 
-interface Props {
-  staff: Staff
-  size?: StaffAvatarSize
-  isActive?: boolean
-  isDragging?: boolean
-}
+type StaffAvatar = z.infer<typeof StaffAvatarSchema>
+type StaffAvatarSize = z.infer<typeof StaffAvatarSizeSchema>
 
-interface Emits {
-  (e: 'click'): void
-}
+const props = withDefaults(
+  defineProps<{
+    staff: StaffAvatar
+    size?: StaffAvatarSize
+    isActive?: boolean
+    isDragging?: boolean
+  }>(),
+  {
+    size: 'normal',
+    isActive: false,
+    isDragging: false,
+  },
+)
 
-const props = withDefaults(defineProps<Props>(), {
-  size: 'normal',
-  isActive: false,
-  isDragging: false,
-})
+defineEmits<{
+  click: []
+}>()
 
-defineEmits<Emits>()
-
-const getInitials = (staff: Staff): string => {
+const getInitials = (staff: StaffAvatar): string => {
   if (staff.initials) {
     return staff.initials
   }
 
-  const firstInitial = staff.first_name?.charAt(0)?.toUpperCase() || ''
-  const lastInitial = staff.last_name?.charAt(0)?.toUpperCase() || ''
+  const firstInitial = staff.firstName?.charAt(0)?.toUpperCase() || ''
+  const lastInitial = staff.lastName?.charAt(0)?.toUpperCase() || ''
 
   if (firstInitial || lastInitial) {
     return firstInitial + lastInitial

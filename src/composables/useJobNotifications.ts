@@ -49,10 +49,8 @@ export function useJobNotifications() {
   }
 
   const notifyDataChanged = (dataType: string) => {
-    toast.info('Data changed', {
-      description: `${dataType} was changed - saving automatically`,
-      duration: 4000,
-    })
+    // Reduced verbosity - only debug log for auto-save
+    debugLog(`🔄 ${dataType} changed - auto-saving`)
   }
 
   const notifyEventAdded = (eventType: string) => {
@@ -62,14 +60,12 @@ export function useJobNotifications() {
   }
 
   const notifyPricingUpdated = () => {
-    toast.info('Prices updated', {
-      description: 'Pricing data was updated automatically',
-      duration: 4000,
-    })
+    // Reduced verbosity - only debug log for pricing updates
+    debugLog('💰 Pricing data updated automatically')
   }
 
   const notifyQuoteLinkStart = () => {
-    toast.loading('Linking spreadsheet...', {
+    toast.info('Linking spreadsheet...', {
       description: 'Creating and configuring quote spreadsheet',
       id: 'quote-link',
     })
@@ -98,7 +94,7 @@ export function useJobNotifications() {
   }
 
   const notifyQuoteRefreshStart = () => {
-    toast.loading('Fetching updates...', {
+    toast.info('Fetching updates...', {
       description: 'Checking for changes in the spreadsheet',
       id: 'quote-refresh',
     })
@@ -127,7 +123,7 @@ export function useJobNotifications() {
   }
 
   const notifySaveStart = (dataType: string = 'data') => {
-    toast.loading(`Saving ${dataType}...`, {
+    toast.info(`Saving ${dataType}...`, {
       id: 'save-data',
     })
   }
@@ -147,7 +143,7 @@ export function useJobNotifications() {
   }
 
   const notifyDeleteStart = (itemType: string) => {
-    toast.loading(`Deleting ${itemType}...`, {
+    toast.info(`Deleting ${itemType}...`, {
       id: 'delete-item',
     })
   }
@@ -179,7 +175,7 @@ export function useJobNotifications() {
   }
 
   const showLoadingToast = (message: string, description?: string, id?: string) => {
-    return toast.loading(message, {
+    return toast.info(message, {
       description,
       id: id || 'loading',
     })

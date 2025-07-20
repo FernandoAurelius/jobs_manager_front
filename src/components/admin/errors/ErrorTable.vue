@@ -8,24 +8,21 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
+import { z } from 'zod'
+import { schemas } from '@/api/generated/api'
 
-interface ErrorRecord {
-  id: string
-  timestamp: string
-  message: string
-  entity?: string
-  severity?: string
-}
+// Use generated XeroError type from Zodios API
+type XeroError = z.infer<typeof schemas.XeroError>
 
 const props = defineProps<{
-  errors: ErrorRecord[]
+  errors: XeroError[]
   loading: boolean
   page: number
   pageCount: number
 }>()
 const emit = defineEmits(['rowClick', 'update:page'])
 
-function onRowClick(record: ErrorRecord) {
+function onRowClick(record: XeroError) {
   emit('rowClick', record)
 }
 </script>
@@ -44,7 +41,12 @@ function onRowClick(record: ErrorRecord) {
         </TableHeader>
         <TableBody>
           <TableRow v-if="props.loading">
-            <TableCell colspan="4" class="text-center py-6">Loading…</TableCell>
+            <TableCell colspan="4" class="text-center py-6">
+              <div class="flex items-center justify-center gap-2">
+                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                Error records are still loading, please wait
+              </div>
+            </TableCell>
           </TableRow>
           <TableRow
             v-for="err in props.errors"
@@ -58,7 +60,9 @@ function onRowClick(record: ErrorRecord) {
             <TableCell>{{ err.severity || 'error' }}</TableCell>
           </TableRow>
           <TableRow v-if="!props.loading && props.errors.length === 0">
-            <TableCell colspan="4" class="text-center py-6">No errors found.</TableCell>
+            <TableCell colspan="4" class="text-center py-6"
+              >No errors found for the current filters.</TableCell
+            >
           </TableRow>
         </TableBody>
       </Table>

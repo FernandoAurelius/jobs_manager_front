@@ -19,7 +19,7 @@
               </svg>
               Xero Sync Progress
             </h1>
-            <div class="flex gap-2">
+            <div class="flex gap-2 ml-5">
               <Button
                 v-if="!isAuthenticated && !loading"
                 @click="loginXero"

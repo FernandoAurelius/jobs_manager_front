@@ -1,53 +1,11 @@
-import api from './api'
+import { api } from '@/api/generated/api'
+import type {
+  JobQuoteChat,
+  JobQuoteChatHistoryResponse,
+  JobQuoteChatInteractionRequest,
+} from '@/api/generated/api'
+import type { VueChatMessage } from '@/api/local/schemas'
 import { debugLog } from '@/utils/debug'
-
-export interface VueChatMessage {
-  _id: string
-  content: string
-  senderId: string
-  username: string
-  timestamp: string
-  system: boolean
-  metadata?: Record<string, unknown>
-}
-
-export interface ChatMessage {
-  message_id: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: string
-  metadata?: Record<string, unknown>
-}
-
-export interface ChatHistoryResponse {
-  success: boolean
-  data: {
-    job_id: string
-    messages: ChatMessage[]
-  }
-}
-
-export interface SaveMessageRequest {
-  message_id: string
-  role: 'user' | 'assistant'
-  content: string
-  metadata?: Record<string, unknown>
-}
-
-export interface SaveMessageResponse {
-  success: boolean
-  data: {
-    message_id: string
-    timestamp: string
-  }
-}
-
-export interface ClearChatResponse {
-  success: boolean
-  data: {
-    deleted_count: number
-  }
-}
 
 export class QuoteChatService {
   private static instance: QuoteChatService
@@ -59,23 +17,21 @@ export class QuoteChatService {
     return this.instance
   }
 
-  async getChatHistory(jobId: string): Promise<ChatHistoryResponse> {
+  async getChatHistory(jobId: string): Promise<JobQuoteChatHistoryResponse> {
     try {
-      const response = await api.get<ChatHistoryResponse>(`/job/api/jobs/${jobId}/quote-chat/`)
-      return response.data
+      return await api.job_api_jobs_quote_chat_retrieve({ id: jobId })
     } catch (error) {
       debugLog('Failed to load chat history:', error)
       throw error
     }
   }
 
-  async saveMessage(jobId: string, message: SaveMessageRequest): Promise<SaveMessageResponse> {
+  async saveMessage(jobId: string, message: Omit<JobQuoteChat, 'id'>): Promise<JobQuoteChat> {
     try {
-      const response = await api.post<SaveMessageResponse>(
-        `/job/api/jobs/${jobId}/quote-chat/`,
-        message,
-      )
-      return response.data
+      return await api.job_api_jobs_quote_chat_create({
+        id: jobId,
+        body: message,
+      })
     } catch (error) {
       debugLog('Failed to save chat message:', error)
       throw error
@@ -85,37 +41,36 @@ export class QuoteChatService {
   async updateMessage(
     jobId: string,
     messageId: string,
-    updates: { content?: string; metadata?: Record<string, unknown> },
-  ): Promise<SaveMessageResponse> {
+    updates: Partial<JobQuoteChat>,
+  ): Promise<JobQuoteChat> {
     try {
-      const response = await api.patch<SaveMessageResponse>(
-        `/job/api/jobs/${jobId}/quote-chat/${messageId}/`,
-        updates,
-      )
-      return response.data
+      return await api.job_api_jobs_quote_chat_partial_update({
+        id: jobId,
+        message_id: messageId,
+        body: updates,
+      })
     } catch (error) {
       debugLog('Failed to update chat message:', error)
       throw error
     }
   }
 
-  async clearChatHistory(jobId: string): Promise<ClearChatResponse> {
+  async clearChatHistory(jobId: string): Promise<void> {
     try {
-      const response = await api.delete<ClearChatResponse>(`/job/api/jobs/${jobId}/quote-chat/`)
-      return response.data
+      await api.job_api_jobs_quote_chat_destroy({ id: jobId })
     } catch (error) {
       debugLog('Failed to clear chat history:', error)
       throw error
     }
   }
 
-  convertToVueMessage(message: ChatMessage): VueChatMessage {
+  convertToVueMessage(message: JobQuoteChat): VueChatMessage {
     return {
-      _id: message.message_id,
-      content: message.content,
+      _id: message.id?.toString() || '',
+      content: message.content || '',
       senderId: message.role === 'user' ? 'user-1' : 'assistant-1',
       username: message.role === 'user' ? 'You' : 'Quoting Assistant',
-      timestamp: message.timestamp,
+      timestamp: message.created_at || new Date().toISOString(),
       system: false,
       metadata: message.metadata,
     }
@@ -124,33 +79,26 @@ export class QuoteChatService {
   convertFromVueMessage(
     vueMessage: VueChatMessage,
     role: 'user' | 'assistant',
-  ): SaveMessageRequest {
+  ): Omit<JobQuoteChat, 'id'> {
     return {
-      message_id: vueMessage._id || `${role}-${Date.now()}`,
       role,
       content: vueMessage.content,
       metadata: vueMessage.metadata || {},
     }
   }
 
-  async getAssistantResponse(jobId: string, message: string): Promise<ChatMessage> {
-    interface AssistantInteractionRequest {
-      message: string
-    }
-    interface AssistantInteractionResponse {
-      success: boolean
-      data: ChatMessage
-    }
-
+  async getAssistantResponse(jobId: string, message: string): Promise<JobQuoteChat> {
     try {
-      const response = await api.post<AssistantInteractionResponse>(
-        `/job/api/jobs/${jobId}/quote-chat/interaction/`,
-        { message } as AssistantInteractionRequest,
-      )
-      return response.data.data
+      const request: JobQuoteChatInteractionRequest = { message }
+      return await api.job_api_jobs_quote_chat_interaction_create({
+        id: jobId,
+        body: request,
+      })
     } catch (error) {
       debugLog('Failed to get assistant response:', error)
       throw error
     }
   }
 }
+
+export const quoteChatService = QuoteChatService.getInstance()

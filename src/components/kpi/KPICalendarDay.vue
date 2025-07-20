@@ -33,18 +33,16 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { DayKPI } from '@/services/kpi.service'
+import { schemas } from '@/api/generated/api'
+import { z } from 'zod'
 
-interface Props {
+type DayKPI = z.infer<typeof schemas.KPIDayData>
+type Thresholds = z.infer<typeof schemas.KPIThresholds>
+
+const props = defineProps<{
   dayData: DayKPI
-  thresholds: {
-    billable_threshold_green: number
-    billable_threshold_amber: number
-    daily_gp_target: number
-  }
-}
-
-const props = defineProps<Props>()
+  thresholds: Thresholds
+}>()
 
 defineEmits<{
   click: [dayData: DayKPI]

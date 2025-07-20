@@ -40,16 +40,16 @@
           class="summary-card bg-gradient-to-br from-green-50 to-white border border-green-100 rounded-xl p-4 flex flex-col gap-2 shadow-sm"
         >
           <div class="flex items-center justify-center gap-0 text-base font-semibold">
-            <span class="flex items-center gap-2 text-green-700">
-              <TrendingUp class="w-7 h-7 text-green-500" />
-              <span>Total revenue:</span>
-              <span class="text-green-700">${{ totalRevenue.toFixed(2) }}</span>
-            </span>
-            <span class="mx-6 h-10 border-l border-gray-300"></span>
             <span class="flex items-center gap-2 text-blue-700">
               <DollarSign class="w-7 h-7 text-blue-500" />
               <span>Total cost:</span>
               <span class="text-blue-700">${{ totalCost.toFixed(2) }}</span>
+            </span>
+            <span class="mx-6 h-10 border-l border-gray-300"></span>
+            <span class="flex items-center gap-2 text-green-700">
+              <TrendingUp class="w-7 h-7 text-green-500" />
+              <span>Total revenue:</span>
+              <span class="text-green-700">${{ totalRevenue.toFixed(2) }}</span>
             </span>
           </div>
         </div>
@@ -136,9 +136,9 @@ function submit() {
   if (descError.value) return
   emit('submit', {
     desc: form.value.desc,
-    quantity: form.value.hours,
-    unit_cost: unitCost.value,
-    unit_rev: unitRevenue.value,
+    quantity: String(form.value.hours),
+    unit_cost: String(unitCost.value),
+    unit_rev: String(unitRevenue.value),
     total_cost: totalCost.value,
     total_rev: totalRevenue.value,
     kind: 'time',

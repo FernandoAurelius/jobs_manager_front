@@ -16,6 +16,7 @@ const props = defineProps<{
   data: TData[]
   title?: string
   modelValue?: number[]
+  isLoading?: boolean
 }>()
 const emit = defineEmits(['update:selectedIds'])
 
@@ -106,9 +107,17 @@ const table = useVueTable({
           </TableRow>
         </template>
         <template v-else>
-          <TableRow>
+          <TableRow v-if="!isLoading">
             <TableCell :colspan="props.columns.length" class="h-24 text-center">
-              No results.
+              No results found.
+            </TableCell>
+          </TableRow>
+          <TableRow v-if="isLoading">
+            <TableCell :colspan="props.columns.length" class="h-24 text-center">
+              <div class="flex items-center justify-center gap-2">
+                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                Loading jobs, please wait
+              </div>
             </TableCell>
           </TableRow>
         </template>

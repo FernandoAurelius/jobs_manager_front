@@ -1,42 +1,22 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { JobDetail, JobEvent } from '@/schemas/job.schemas'
-import type { CompanyDefaults } from '@/types/timesheet.types'
+import { schemas } from '@/api/generated/api'
+import {
+  JobDetailResponseWithFinancialDataSchema,
+  KanbanJobUISchema,
+  JobEventSchema,
+} from '@/api/local/schemas'
 import { debugLog } from '@/utils/debug'
+import type { z } from 'zod'
 
-export interface JobKanbanData {
-  id: string
-  name: string
-  description?: string | null
-  job_number: number
-  client_name: string
-  contact_person?: string | null
-  people: Array<{ id: string; display_name: string }>
-  status: string
-  status_key: string
-  job_status: string
-  paid: boolean
-  created_by_id?: string | null
-  created_at?: string
-  priority?: number
-}
-
-export interface JobsStoreState {
-  detailedJobs: Record<string, JobDetail>
-
-  kanbanJobs: Record<string, JobKanbanData>
-
-  currentJobId: string | null
-
-  isLoadingJob: boolean
-  isLoadingKanban: boolean
-
-  currentContext: 'kanban' | 'detail' | null
-}
+type JobDetail = z.infer<typeof JobDetailResponseWithFinancialDataSchema>['data']
+type JobEvent = z.infer<typeof JobEventSchema>
+type KanbanJobUI = z.infer<typeof KanbanJobUISchema>
+type CompanyDefaults = z.infer<typeof schemas.CompanyDefaults>
 
 export const useJobsStore = defineStore('jobs', () => {
   const detailedJobs = ref<Record<string, JobDetail>>({})
-  const kanbanJobs = ref<Record<string, JobKanbanData>>({})
+  const kanbanJobs = ref<Record<string, KanbanJobUI>>({})
   const currentJobId = ref<string | null>(null)
   const isLoadingJob = ref(false)
   const isLoadingKanban = ref(false)
@@ -58,7 +38,7 @@ export const useJobsStore = defineStore('jobs', () => {
   })
 
   const getKanbanJobById = computed(() => {
-    return (id: string): JobKanbanData | null => {
+    return (id: string): KanbanJobUI | null => {
       return kanbanJobs.value[id] || null
     }
   })
@@ -121,18 +101,18 @@ export const useJobsStore = defineStore('jobs', () => {
     delete detailedJobs.value[jobId]
   }
 
-  const setKanbanJobs = (jobs: JobKanbanData[]): void => {
+  const setKanbanJobs = (jobs: KanbanJobUI[]): void => {
     kanbanJobs.value = {}
     jobs.forEach((job) => {
       kanbanJobs.value[job.id] = job
     })
   }
 
-  const setKanbanJob = (job: JobKanbanData): void => {
+  const setKanbanJob = (job: KanbanJobUI): void => {
     kanbanJobs.value[job.id] = job
   }
 
-  const updateKanbanJob = (jobId: string, updates: Partial<JobKanbanData>): void => {
+  const updateKanbanJob = (jobId: string, updates: Partial<KanbanJobUI>): void => {
     const existingJob = kanbanJobs.value[jobId]
     if (existingJob) {
       kanbanJobs.value[jobId] = { ...existingJob, ...updates }
@@ -231,10 +211,10 @@ export const useJobsStore = defineStore('jobs', () => {
     if (!jobId) return undefined
 
     try {
-      const { jobRestService } = await import('@/services/job-rest.service')
-      const response = await jobRestService.getJobForEdit(jobId)
+      const { jobService } = await import('@/services/job.service')
+      const response = await jobService.getJob(jobId)
 
-      if (response.success && response.data) {
+      if (response.success && response.data?.job) {
         setDetailedJob(response.data.job)
         return { job: response.data.job, events: response.data.events || [] }
       }

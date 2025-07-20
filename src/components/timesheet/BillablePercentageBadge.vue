@@ -12,11 +12,9 @@
 import { computed } from 'vue'
 import { TrendingUp } from 'lucide-vue-next'
 
-interface Props {
+const props = defineProps<{
   percentage?: number
-}
-
-const props = defineProps<Props>()
+}>()
 
 const displayValue = computed(() => {
   if (props.percentage === undefined || props.percentage === null) return '--'

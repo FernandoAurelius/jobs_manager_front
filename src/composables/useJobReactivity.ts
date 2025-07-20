@@ -1,5 +1,6 @@
 import { useJobsStore } from '@/stores/jobs'
-import { jobRestService, type JobEvent, type JobData } from '@/services/job-rest.service'
+import { jobService } from '@/services/job.service'
+import type { JobDetailResponse } from '@/api/generated/api'
 import { useJobCache } from './useJobCache'
 import { debugLog } from '@/utils/debug'
 
@@ -9,15 +10,15 @@ export function useJobReactivity() {
 
   const ongoingReloads = new Set<string>()
 
-  const updateJobReactively = (jobId: string, updates: Partial<JobData>) => {
+  const updateJobReactively = (jobId: string, updates: Partial<JobDetailResponse>) => {
     jobsStore.updateJobPartialData(jobId, updates)
     updateCachedJob(jobId, updates)
     debugLog(`🔄 Job ${jobId} updated reactively:`, Object.keys(updates))
   }
 
-  const addEventReactively = (jobId: string, event: JobEvent) => {
+  const addEventReactively = (jobId: string, event: { description: string }) => {
     jobsStore.addJobEvent(jobId, event)
-    debugLog(`📝 Event added reactively to job ${jobId}:`, event.event_type)
+    debugLog(`📝 Event added reactively to job ${jobId}:`, event.description)
   }
 
   const updateStatusReactively = (jobId: string, newStatus: string) => {
@@ -35,7 +36,7 @@ export function useJobReactivity() {
 
     try {
       const loadFromAPI = async () => {
-        const response = await jobRestService.getJobForEdit(jobId)
+        const response = await jobService.getJob(jobId)
 
         if (!response.success || !response.data) {
           throw new Error('Failed to load job data from API')
@@ -49,7 +50,7 @@ export function useJobReactivity() {
         }
       }
 
-      let enrichedJob: JobData
+      let enrichedJob: JobDetailResponse
 
       if (forceReload) {
         enrichedJob = await loadFromAPI()

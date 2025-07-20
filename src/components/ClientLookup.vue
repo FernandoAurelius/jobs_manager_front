@@ -98,21 +98,22 @@ import { useClientLookup } from '@/composables/useClientLookup'
 import CreateClientModal from '@/components/CreateClientModal.vue'
 import type { Client } from '@/composables/useClientLookup'
 
-interface Props {
-  id: string
-  label: string
-  placeholder?: string
-  required?: boolean
-  modelValue?: string
-  supplierLookup?: boolean
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  placeholder: 'Search for a client...',
-  required: false,
-  modelValue: '',
-  supplierLookup: false,
-})
+const props = withDefaults(
+  defineProps<{
+    id: string
+    label: string
+    placeholder?: string
+    required?: boolean
+    modelValue?: string
+    supplierLookup?: boolean
+  }>(),
+  {
+    placeholder: 'Search for a client...',
+    required: false,
+    modelValue: '',
+    supplierLookup: false,
+  },
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]

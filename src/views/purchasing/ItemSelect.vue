@@ -28,7 +28,7 @@ onMounted(async () => {
 
 const displayLabel = computed(() => {
   if (!props.modelValue) return 'Select'
-  const found = store.items.find((i) => i.code === props.modelValue)
+  const found = store.items.find((i) => i.id === props.modelValue)
   return found ? found.code : 'Select'
 })
 </script>
@@ -40,7 +40,7 @@ const displayLabel = computed(() => {
     @update:model-value="
       (val) => {
         emit('update:modelValue', val)
-        const found = store.items.find((i) => i.code === val)
+        const found = store.items.find((i) => i.id === val)
         emit('update:description', found ? found.name : '')
         emit('update:unit_cost', found && found.unit_cost != null ? Number(found.unit_cost) : null)
       }
@@ -53,7 +53,7 @@ const displayLabel = computed(() => {
     </SelectTrigger>
 
     <SelectContent>
-      <SelectItem v-for="i in store.items" :key="i.id" :value="i.code">{{ i.code }}</SelectItem>
+      <SelectItem v-for="i in store.items" :key="i.id" :value="i.id">{{ i.code }}</SelectItem>
     </SelectContent>
   </Select>
 </template>

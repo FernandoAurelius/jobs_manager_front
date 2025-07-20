@@ -1,14 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import api from '@/plugins/axios'
-import { debugLog } from '@/utils/debug'
+import { api } from '../api/generated/api'
+import { debugLog } from '../utils/debug'
+import { schemas } from '../api/generated/api'
+import axios from 'axios'
+import type { z } from 'zod'
 
-export interface PurchaseOrder {
-  id: string
-  po_number: string
-  status: string
-  supplier: string
-}
+// Type definitions
+type PurchaseOrder = z.infer<typeof schemas.PurchaseOrderList>
+type PurchaseOrderCreate = z.infer<typeof schemas.PurchaseOrderCreate>
+type PurchaseOrderUpdate = z.infer<typeof schemas.PatchedPurchaseOrderUpdate>
 
 export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
   const orders = ref<PurchaseOrder[]>([])
@@ -18,32 +19,29 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
   async function fetchOrders() {
     loading.value = true
     error.value = null
-    const url = '/purchasing/rest/purchase-orders/'
 
     try {
-      const res = await api.get(url)
-      orders.value = Array.isArray(res.data) ? res.data : []
+      const response = await api.listPurchaseOrders()
+      orders.value = response
     } catch (err) {
-      const errorMessage = handleApiError(err, 'Failed to fetch purchase orders')
-      error.value = errorMessage
+      error.value = 'Failed to fetch purchase orders'
       debugLog('Error fetching purchase orders:', err)
-      throw new Error(errorMessage)
+      throw err
     } finally {
       loading.value = false
     }
   }
 
-  async function createOrder(data: unknown) {
+  async function createOrder(data: PurchaseOrderCreate) {
     error.value = null
 
     try {
-      const res = await api.post('/purchasing/rest/purchase-orders/', data)
-      return res.data
+      const response = await api.purchasing_rest_purchase_orders_create(data)
+      return response
     } catch (err) {
-      const errorMessage = handleApiError(err, 'Failed to create purchase order')
-      error.value = errorMessage
+      error.value = 'Failed to create purchase order'
       debugLog('Error creating purchase order:', err)
-      throw new Error(errorMessage)
+      throw err
     }
   }
 
@@ -55,17 +53,18 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
     error.value = null
 
     try {
-      const res = await api.get(`/purchasing/rest/purchase-orders/${id}/`)
-      return res.data
+      const response = await api.retrievePurchaseOrder({
+        params: { id },
+      })
+      return response
     } catch (err) {
-      const errorMessage = handleApiError(err, `Failed to fetch purchase order ${id}`)
-      error.value = errorMessage
+      error.value = `Failed to fetch purchase order ${id}`
       debugLog(`Error fetching purchase order ${id}:`, err)
-      throw new Error(errorMessage)
+      throw err
     }
   }
 
-  async function patch(id: string, data: unknown) {
+  async function patch(id: string, data: PurchaseOrderUpdate) {
     if (!id) {
       throw new Error('Purchase order ID is required')
     }
@@ -73,13 +72,14 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
     error.value = null
 
     try {
-      const res = await api.patch(`/purchasing/rest/purchase-orders/${id}/`, data)
-      return res.data
+      const response = await api.purchasing_rest_purchase_orders_partial_update(data, {
+        params: { id: id },
+      })
+      return response
     } catch (err) {
-      const errorMessage = handleApiError(err, `Failed to update purchase order ${id}`)
-      error.value = errorMessage
+      error.value = `Failed to update purchase order ${id}`
       debugLog(`Error updating purchase order ${id}:`, err)
-      throw new Error(errorMessage)
+      throw err
     }
   }
 
@@ -89,14 +89,15 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
     }
 
     try {
-      const res = await api.get(`/purchasing/api/purchase-orders/${id}/pdf/`, {
+      // First, try the standard endpoint
+      const response = await axios.get(`/purchasing/api/purchase-orders/${id}/pdf/`, {
         responseType: 'blob',
       })
-      return res.data
+
+      return response.data
     } catch (err) {
-      const errorMessage = handleApiError(err, `Failed to fetch PDF for purchase order ${id}`)
       debugLog(`Error fetching PDF for purchase order ${id}:`, err)
-      throw new Error(errorMessage)
+      throw err
     }
   }
 
@@ -106,63 +107,15 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
     }
 
     try {
-      const res = await api.post(`/purchasing/api/purchase-orders/${id}/email/`)
-      return res.data
+      const response = await api.purchasing_api_purchase_orders_email_create(
+        {}, // Empty body as required by the schema
+        { params: { purchase_order_id: id } },
+      )
+      return response
     } catch (err) {
-      const errorMessage = handleApiError(err, `Failed to email purchase order ${id}`)
       debugLog(`Error emailing purchase order ${id}:`, err)
-      throw new Error(errorMessage)
+      throw err
     }
-  }
-
-  async function deleteOrder(id: string) {
-    if (!id) {
-      throw new Error('Purchase order ID is required')
-    }
-
-    error.value = null
-
-    try {
-      await api.delete(`/purchasing/rest/purchase-orders/${id}/`)
-      orders.value = orders.value.filter((order) => order.id !== id)
-    } catch (err) {
-      const errorMessage = handleApiError(err, `Failed to delete purchase order ${id}`)
-      error.value = errorMessage
-      debugLog(`Error deleting purchase order ${id}:`, err)
-      throw new Error(errorMessage)
-    }
-  }
-
-  function handleApiError(err: unknown, defaultMessage: string): string {
-    if (!err) return defaultMessage
-
-    if (typeof err === 'object' && 'response' in err) {
-      const axiosError = err as {
-        response?: { status?: number; data?: { error?: string; message?: string } }
-      }
-
-      if (axiosError.response?.status === 404) {
-        return 'Resource not found'
-      }
-
-      if (axiosError.response?.status === 403) {
-        return 'Access denied'
-      }
-
-      if (axiosError.response?.data?.error) {
-        return axiosError.response.data.error
-      }
-
-      if (axiosError.response?.data?.message) {
-        return axiosError.response.data.message
-      }
-    }
-
-    if (err instanceof Error) {
-      return err.message
-    }
-
-    return defaultMessage
   }
 
   return {
@@ -175,6 +128,5 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
     patch,
     fetchPurchaseOrderPdf,
     emailPurchaseOrder,
-    deleteOrder,
   }
 })

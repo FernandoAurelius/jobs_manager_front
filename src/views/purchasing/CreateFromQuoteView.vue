@@ -10,10 +10,10 @@
       </div>
 
       <div class="max-w-2xl mx-auto">
-        <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+        <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
           <div class="space-y-6">
             <div class="text-center">
-              <FileSpreadsheet class="w-16 h-16 mx-auto text-indigo-600 mb-4" />
+              <FileSpreadsheet class="w-16 h-8 mx-auto text-indigo-600 mb-4" />
               <h2 class="text-xl font-semibold mb-2">Upload Supplier Quote</h2>
               <p class="text-gray-600 mb-6">
                 Upload a supplier quote file (preferably in PDF) and we'll automatically extract the
@@ -120,6 +120,8 @@ import {
   CheckCircle,
   Loader2,
 } from 'lucide-vue-next'
+// TODO: Remove this axios import when supplier-quotes endpoint is added to generated API
+// The /purchasing/api/supplier-quotes/extract/ endpoint is not yet available in Zodios
 import api from '@/plugins/axios'
 
 const router = useRouter()
@@ -211,10 +213,14 @@ const handleSubmit = async () => {
     console.error('Error uploading quote:', error)
 
     let errorMessage = 'Failed to process the quote. Please try again.'
-    if (error instanceof Error && 'response' in error) {
-      const axiosError = error as { response?: { data?: { error?: string } } }
-      if (axiosError.response?.data?.error) {
-        errorMessage = axiosError.response.data.error
+
+    // Type-safe error handling without any usage
+    if (error instanceof Error) {
+      errorMessage = error.message
+    } else if (typeof error === 'object' && error !== null && 'response' in error) {
+      const responseError = error as { response?: { data?: { error?: string } } }
+      if (responseError.response?.data?.error) {
+        errorMessage = responseError.response.data.error
       }
     }
 

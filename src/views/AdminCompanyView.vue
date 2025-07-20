@@ -9,7 +9,17 @@
               Company Defaults
             </h1>
           </div>
-          <div class="flex flex-col items-center justify-center" style="height: 60vh">
+          <div
+            v-if="loading"
+            class="flex flex-col items-center justify-center"
+            style="height: 60vh"
+          >
+            <div class="flex items-center justify-center gap-2">
+              <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              Company defaults are still loading, please wait
+            </div>
+          </div>
+          <div v-else class="flex flex-col items-center justify-center" style="height: 60vh">
             <div class="grid grid-cols-3 gap-6 mb-6 w-full max-w-3xl">
               <button class="section-btn" @click="openSection('general')">
                 <Settings class="w-12 h-12 mb-2" />
@@ -69,10 +79,10 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
+import { debugLog } from '../utils/debug'
 
-import AppLayout from '@/components/AppLayout.vue'
-import { Button } from '@/components/ui/button'
+import AppLayout from '../components/AppLayout.vue'
+import { Button } from '../components/ui/button'
 import { ref, onMounted } from 'vue'
 import type { AIProvider } from '../services/admin-company-defaults-service'
 import {
@@ -85,17 +95,18 @@ import {
   Sparkles,
   Clock,
 } from 'lucide-vue-next'
-import AIProvidersDialog from '@/components/AIProvidersDialog.vue'
-import SectionModal from '@/components/SectionModal.vue'
+import AIProvidersDialog from '../components/AIProvidersDialog.vue'
+import SectionModal from '../components/SectionModal.vue'
 import {
   getCompanyDefaults,
   updateCompanyDefaults,
   CompanyDefaults,
-} from '@/services/admin-company-defaults-service'
+  PatchedCompanyDefaults,
+} from '../services/admin-company-defaults-service'
 import { toast } from 'vue-sonner'
 
-const companyDefaults = ref<CompanyDefaults>({ ai_providers: [] } as CompanyDefaults)
-const form = ref<CompanyDefaults>({ ai_providers: [] } as CompanyDefaults)
+const companyDefaults = ref<CompanyDefaults>({} as CompanyDefaults)
+const form = ref<CompanyDefaults>({} as CompanyDefaults)
 const loading = ref(true)
 const showAIProvidersDialog = ref(false)
 const modalSection = ref<string | null>(null)
@@ -128,7 +139,46 @@ async function saveAll() {
   try {
     debugLog('[AdminCompanyView] saveAll() called with form.value:', form.value)
     debugLog('[AdminCompanyView] saveAll() AI providers specifically:', form.value.ai_providers)
-    await updateCompanyDefaults(form.value)
+
+    // Create a clean payload excluding read-only fields
+    const payload: Partial<PatchedCompanyDefaults> = {
+      company_name: form.value.company_name,
+      ai_providers: form.value.ai_providers || [],
+      is_primary: form.value.is_primary,
+      time_markup: form.value.time_markup,
+      materials_markup: form.value.materials_markup,
+      charge_out_rate: form.value.charge_out_rate,
+      wage_rate: form.value.wage_rate,
+      starting_job_number: form.value.starting_job_number,
+      starting_po_number: form.value.starting_po_number,
+      po_prefix: form.value.po_prefix,
+      master_quote_template_url: form.value.master_quote_template_url,
+      master_quote_template_id: form.value.master_quote_template_id,
+      gdrive_quotes_folder_url: form.value.gdrive_quotes_folder_url,
+      gdrive_quotes_folder_id: form.value.gdrive_quotes_folder_id,
+      xero_tenant_id: form.value.xero_tenant_id,
+      mon_start: form.value.mon_start,
+      mon_end: form.value.mon_end,
+      tue_start: form.value.tue_start,
+      tue_end: form.value.tue_end,
+      wed_start: form.value.wed_start,
+      wed_end: form.value.wed_end,
+      thu_start: form.value.thu_start,
+      thu_end: form.value.thu_end,
+      fri_start: form.value.fri_start,
+      fri_end: form.value.fri_end,
+      last_xero_sync: form.value.last_xero_sync,
+      last_xero_deep_sync: form.value.last_xero_deep_sync,
+      shop_client_name: form.value.shop_client_name,
+      billable_threshold_green: form.value.billable_threshold_green,
+      billable_threshold_amber: form.value.billable_threshold_amber,
+      daily_gp_target: form.value.daily_gp_target,
+      shop_hours_target_percentage: form.value.shop_hours_target_percentage,
+    }
+
+    debugLog('[AdminCompanyView] saveAll() clean payload:', payload)
+
+    await updateCompanyDefaults(payload)
     toast.success('Company defaults saved successfully!')
     await fetchDefaults()
   } catch (error) {

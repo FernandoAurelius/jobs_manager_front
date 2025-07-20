@@ -1,87 +1,20 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import api from '@/plugins/axios'
+import { api, schemas } from '@/api/generated/api'
 import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
 import { debugLog } from '@/utils/debug'
+import type { z } from 'zod'
 
-interface ExistingAllocation {
-  quantity: number
-  type: string
-  job_id: string
-  job_name: string
-  allocation_date?: string
-  description?: string
-  retail_rate?: number
-  stock_location?: string
-}
+type Job = z.infer<typeof schemas.JobForPurchasing>
+type PurchaseOrderDetail = z.infer<typeof schemas.PurchaseOrderDetail>
+type DeliveryReceiptRequest = z.infer<typeof schemas.DeliveryReceiptRequest>
+type AllJobsResponse = z.infer<typeof schemas.AllJobsResponse>
+type PurchaseOrderAllocationsResponse = z.infer<typeof schemas.PurchaseOrderAllocationsResponse>
 
-export interface Job {
-  id: string
-  job_number: string
-  name: string
-  client_name?: string
-  status?: string
+// Extended Job type for delivery receipt functionality
+type ExtendedJob = Job & {
   is_stock_holding?: boolean
-  job_display_name?: string
-}
-
-export interface PurchaseOrderLine {
-  id: string
-  po_id?: string
-  part_no?: string
-  job_id?: string
-  job_name?: string
-  description: string
-  quantity: number
-  received_quantity: number
-  unit_cost: number | null
-  metal_type?: string
-  alloy?: string
-  specifics?: string
-  location?: string
-  qty_ordered?: number
-  qty_received?: number
-  retail_rate?: number
-}
-
-export interface PurchaseOrder {
-  id: string
-  po_number: string
-  supplier: string
-  order_date: string
-  status: string
-  lines: PurchaseOrderLine[]
-}
-
-export interface AllocationData {
-  job_id: string
-  quantity: number
-  retail_rate: number
-}
-
-export interface DeliveryAllocation {
-  job_id: string | null
-  stock_location: string | null
-  quantity: number
-  retail_rate: number
-}
-
-export interface DeliveryReceipt {
-  id: string
-  po_number: string
-  supplier: string
-  order_date: string
-  status: string
-  allocations: Record<string, DeliveryAllocation[]>
-}
-
-export interface LineAllocation {
-  total_received: number
-  allocations: AllocationData[]
-}
-
-export interface DeliveryReceiptData {
-  [lineId: string]: LineAllocation
+  status?: string
 }
 
 export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
@@ -101,7 +34,7 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
     return 0
   }
 
-  async function fetchPurchaseOrder(id: string): Promise<PurchaseOrder> {
+  async function fetchPurchaseOrder(id: string): Promise<PurchaseOrderDetail> {
     if (!id) {
       throw new Error('Purchase order ID is required')
     }
@@ -110,8 +43,8 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
     error.value = null
 
     try {
-      const res = await api.get(`/purchasing/rest/purchase-orders/${id}/`)
-      return res.data
+      const response = await api.retrievePurchaseOrder({ params: { id } })
+      return response
     } catch (err) {
       const errorMessage = handleApiError(err, `Failed to fetch purchase order ${id}`)
       error.value = errorMessage
@@ -126,8 +59,8 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
     error.value = null
 
     try {
-      const res = await api.get('/purchasing/rest/all-jobs/')
-      const data = res.data
+      const response = await api.purchasing_rest_all_jobs_retrieve()
+      const data = response as AllJobsResponse
 
       if (!data.success) {
         throw new Error(data.error || 'Failed to fetch jobs')
@@ -135,17 +68,15 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
 
       const allJobs = data.jobs || []
 
-      const stockHolding = allJobs.find(
-        (job: Job & { is_stock_holding: boolean }) => job.is_stock_holding,
-      )
+      const stockHolding = allJobs.find((job: ExtendedJob) => job.is_stock_holding)
       if (!stockHolding) {
         throw new Error('Stock holding job not found')
       }
 
       const allocatable = allJobs.filter(
-        (job: Job & { is_stock_holding: boolean; status: string }) =>
+        (job: ExtendedJob) =>
           !job.is_stock_holding &&
-          !['rejected', 'archived', 'completed', 'special'].includes(job.status),
+          !['rejected', 'archived', 'completed', 'special'].includes(job.status || ''),
       )
 
       stockHoldingJob.value = stockHolding
@@ -162,13 +93,7 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
 
   async function submitDeliveryReceipt(
     purchaseOrderId: string,
-    receiptData: Record<
-      string,
-      {
-        total_received: number
-        allocations: { jobId: string | null; quantity: number; retailRate: number }[]
-      }
-    >,
+    receiptData: DeliveryReceiptRequest['allocations'],
   ): Promise<void> {
     if (!purchaseOrderId) {
       throw new Error('Purchase order ID is required')
@@ -182,16 +107,12 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
     error.value = null
 
     try {
-      const payload = {
+      const payload: DeliveryReceiptRequest = {
         purchase_order_id: purchaseOrderId,
         allocations: receiptData,
       }
 
-      await api.post('/purchasing/rest/delivery-receipts/', payload, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
+      await api.purchasing_rest_delivery_receipts_create(payload)
     } catch (err) {
       const errorMessage = handleApiError(
         err,
@@ -207,7 +128,7 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
 
   async function fetchExistingAllocations(
     purchaseOrderId: string,
-  ): Promise<{ po_id: string; allocations: Record<string, ExistingAllocation[]> }> {
+  ): Promise<PurchaseOrderAllocationsResponse> {
     if (!purchaseOrderId) {
       throw new Error('Purchase order ID is required')
     }
@@ -217,9 +138,11 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
 
     try {
       debugLog(`🔍 Fetching existing allocations for PO: ${purchaseOrderId}`)
-      const res = await api.get(`/purchasing/rest/purchase-orders/${purchaseOrderId}/allocations/`)
-      debugLog('📦 Existing allocations response:', res.data)
-      return res.data
+      const response = await api.purchasing_rest_purchase_orders_allocations_retrieve({
+        params: { po_id: purchaseOrderId },
+      })
+      debugLog('📦 Existing allocations response:', response)
+      return response
     } catch (err) {
       const errorMessage = handleApiError(
         err,

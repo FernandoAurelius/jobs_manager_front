@@ -30,18 +30,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-interface Props {
+const props = defineProps<{
   year: number
   month: number
-}
+}>()
 
-interface Emits {
-  (e: 'update:year', value: number): void
-  (e: 'update:month', value: number): void
-}
-
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+const emit = defineEmits<{
+  'update:year': [value: number]
+  'update:month': [value: number]
+}>()
 
 const selectedValue = computed(() => `${props.year}-${props.month.toString().padStart(2, '0')}`)
 

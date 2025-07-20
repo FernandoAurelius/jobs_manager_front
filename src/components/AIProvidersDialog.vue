@@ -42,10 +42,9 @@
               class="input ai-input"
               autocomplete="off"
             >
-              <option value="openai">OpenAI</option>
-              <option value="google">Google</option>
-              <option value="mistral">Mistral</option>
+              <option value="Claude">Claude</option>
               <option value="Gemini">Gemini</option>
+              <option value="Mistral">Mistral</option>
             </select>
             <input
               v-model="localProviders[idx].api_key"
@@ -120,24 +119,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import Button from './ui/button/Button.vue'
 import { ref, watch } from 'vue'
 import { ArrowLeft } from 'lucide-vue-next'
-interface AIProvider {
-  id?: number
-  name: string
-  provider_type: string
-  model_name: string
-  api_key?: string // Optional since backend may not return sensitive data
-  default: boolean
-}
+import { schemas } from '@/api/generated/api'
+import { z } from 'zod'
+
+type AIProvider = z.infer<typeof schemas.AIProvider>
+type AIProviderCreateUpdate = z.infer<typeof schemas.AIProviderCreateUpdate>
 
 const props = defineProps<{ providers?: AIProvider[] }>()
 const emit = defineEmits(['close', 'update:providers'])
 
-// Guard clause para providers undefined
 const safeProviders = props.providers || []
-const localProviders = ref<AIProvider[]>(
+const localProviders = ref<AIProviderCreateUpdate[]>(
   safeProviders.map((p) => ({
     ...p,
-    api_key: typeof p.api_key === 'string' ? p.api_key.trim() : '', // Limpar api_key corrompida
+    api_key: typeof p.api_key === 'string' ? p.api_key.trim() : '',
+    company: p.company || '',
   })),
 )
 
@@ -150,7 +146,6 @@ if (props.providers && props.providers.length > 0) {
   debugLog('[AIProvidersDialog] First provider:', props.providers[0])
 }
 
-// Watch apenas para quando props.providers mudar externamente
 watch(
   () => props.providers,
   (newVal) => {
@@ -158,6 +153,7 @@ watch(
       localProviders.value = newVal.map((p) => ({
         ...p,
         api_key: p.api_key || '',
+        company: p.company || '',
       }))
     }
   },
@@ -165,7 +161,6 @@ watch(
 )
 
 function handleClose() {
-  // Forçar uma última verificação e emissão dos dados
   debugLog(
     '[AIProvidersDialog] handleClose - final localProviders:',
     localProviders.value.map((p) => ({
@@ -175,18 +170,19 @@ function handleClose() {
     })),
   )
 
-  // Emitir as alterações finais ao fechar
   emitProviders()
   emit('close')
 }
 
 function addProvider() {
   localProviders.value.push({
+    id: 0, // Temporary ID for new provider
     name: '',
-    provider_type: 'openai',
+    provider_type: 'Claude',
     model_name: '',
     api_key: '',
     default: false,
+    company: '',
   })
   debugLog('[AIProvidersDialog] addProvider - new provider added')
   emitProviders()
@@ -206,13 +202,11 @@ function setDefault(idx: number, checked: boolean) {
   })
 
   if (checked) {
-    // Se está marcando como true, unset todos os outros
     localProviders.value.forEach((p, i) => {
       debugLog(`[AIProvidersDialog] Setting provider ${i} default to ${i === idx}`)
       p.default = i === idx
     })
   } else {
-    // Se está desmarcando, apenas desmarcar este
     debugLog(`[AIProvidersDialog] Unchecking provider ${idx}`)
     localProviders.value[idx].default = false
   }
@@ -226,27 +220,21 @@ function setDefault(idx: number, checked: boolean) {
     localProviders.value.map((p) => ({ name: p.name, default: p.default })),
   )
 
-  // Forçar emissão imediata
   emitProviders()
 }
 
 function emitProviders() {
-  // Preparar providers para envio - garantir que novos providers tenham api_key
   const providersToSend = localProviders.value.map((p) => {
     const provider = { ...p }
 
-    // Limpar api_key de qualquer caractere inválido
     if (provider.api_key && typeof provider.api_key === 'string') {
       provider.api_key = provider.api_key.trim()
     }
 
-    // Se é um provider novo (sem id) e não tem api_key, é um problema
     if (!provider.id && !provider.api_key) {
       console.warn('New provider without API key:', provider)
     }
 
-    // Para providers existentes, se api_key está vazio, omitir do payload
-    // Isso indica que não queremos alterar a api_key existente
     if (provider.id && !provider.api_key) {
       delete provider.api_key
     }

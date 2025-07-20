@@ -65,7 +65,6 @@
                 placeholder="Wage Rate"
                 min="0"
                 step="0.01"
-                required
               />
             </div>
             <div class="w-1/2">
@@ -248,10 +247,17 @@
             />
           </div>
         </div>
-        <p v-if="error" class="text-red-600 text-sm">{{ error }}</p>
         <DialogFooter class="flex gap-2 justify-end">
-          <Button variant="ghost" type="button" @click="handleClose">Cancel</Button>
-          <Button type="submit">{{ staff ? 'Save Changes' : 'Create Staff' }}</Button>
+          <Button variant="ghost" type="button" @click="handleClose" :disabled="isLoading"
+            >Cancel</Button
+          >
+          <Button type="submit" :disabled="isLoading">
+            <div v-if="isLoading" class="flex items-center gap-2">
+              <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              {{ staff ? 'Saving...' : 'Creating...' }}
+            </div>
+            <span v-else>{{ staff ? 'Save Changes' : 'Create Staff' }}</span>
+          </Button>
         </DialogFooter>
       </form>
     </DialogContent>
@@ -268,9 +274,12 @@ import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { computed, ref, watch } from 'vue'
 import { z } from 'zod'
-import type { Staff } from '@/types/staff'
+import { schemas } from '../api/generated/api'
 import { useStaffApi } from '@/composables/useStaffApi'
 import { UserIcon, LockIcon, ClockIcon } from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
+
+type Staff = z.infer<typeof schemas.Staff>
 
 const tabs = [
   { key: 'personal', label: 'Personal Info', icon: UserIcon },
@@ -282,6 +291,7 @@ const activeTab = ref('personal')
 const props = defineProps<{ staff: Staff | null }>()
 const emit = defineEmits(['close', 'saved'])
 
+const isLoading = ref(false)
 const { createStaff, updateStaff } = useStaffApi()
 const form = ref({
   first_name: '',
@@ -328,7 +338,7 @@ const staffSchema = z.object({
   first_name: z.string().min(1, 'First name is required'),
   last_name: z.string().min(1, 'Last name is required'),
   email: z.string().email('Invalid email'),
-  wage_rate: z.number().min(0, 'Wage rate must be positive'),
+  wage_rate: z.number().min(0, 'Wage rate must be positive').optional(),
   preferred_name: z.string().optional(),
   ims_payroll_id: z.string().optional(),
   hours_mon: z.number().min(0).max(24),
@@ -350,30 +360,47 @@ const staffSchema = z.object({
 watch(
   () => props.staff,
   (staff) => {
+    console.log('StaffFormModal - Props staff changed:', staff)
     if (staff) {
+      console.log(
+        'StaffFormModal - Staff wage_rate from props:',
+        staff.wage_rate,
+        typeof staff.wage_rate,
+      )
       form.value = {
         first_name: staff.first_name,
         last_name: staff.last_name,
         preferred_name: staff.preferred_name || '',
         email: staff.email,
-        wage_rate: staff.wage_rate,
+        wage_rate: staff.wage_rate ? parseFloat(staff.wage_rate) : 0,
         ims_payroll_id: staff.ims_payroll_id || '',
         icon: null,
-        hours_mon: staff.hours_mon || 0,
-        hours_tue: staff.hours_tue || 0,
-        hours_wed: staff.hours_wed || 0,
-        hours_thu: staff.hours_thu || 0,
-        hours_fri: staff.hours_fri || 0,
-        hours_sat: staff.hours_sat || 0,
-        hours_sun: staff.hours_sun || 0,
+        hours_mon: staff.hours_mon ? parseFloat(staff.hours_mon) : 0,
+        hours_tue: staff.hours_tue ? parseFloat(staff.hours_tue) : 0,
+        hours_wed: staff.hours_wed ? parseFloat(staff.hours_wed) : 0,
+        hours_thu: staff.hours_thu ? parseFloat(staff.hours_thu) : 0,
+        hours_fri: staff.hours_fri ? parseFloat(staff.hours_fri) : 0,
+        hours_sat: staff.hours_sat ? parseFloat(staff.hours_sat) : 0,
+        hours_sun: staff.hours_sun ? parseFloat(staff.hours_sun) : 0,
         is_staff: staff.is_staff || false,
         is_active: staff.is_active ?? true,
         is_superuser: staff.is_superuser || false,
-        groups: staff.groups ? String(staff.groups) : '',
-        user_permissions: staff.user_permissions ? String(staff.user_permissions) : '',
+        // Convert arrays of numbers to comma-separated strings for form fields
+        groups:
+          Array.isArray(staff.groups) && staff.groups.length > 0 ? staff.groups.join(', ') : '',
+        user_permissions:
+          Array.isArray(staff.user_permissions) && staff.user_permissions.length > 0
+            ? staff.user_permissions.join(', ')
+            : '',
         last_login: staff.last_login || '',
         date_joined: staff.date_joined || '',
       }
+      console.log('StaffFormModal - Form populated with:', form.value)
+      console.log(
+        'StaffFormModal - Form wage_rate after parsing:',
+        form.value.wage_rate,
+        typeof form.value.wage_rate,
+      )
     } else {
       form.value = {
         first_name: '',
@@ -415,6 +442,15 @@ function handleClose() {
 
 async function submitForm() {
   error.value = ''
+  isLoading.value = true
+
+  console.log('StaffFormModal - Submitting form with data:', form.value)
+  console.log(
+    'StaffFormModal - Form wage_rate before validation:',
+    form.value.wage_rate,
+    typeof form.value.wage_rate,
+  )
+
   const parsed = staffSchema.safeParse({
     ...form.value,
     wage_rate: Number(form.value.wage_rate),
@@ -426,23 +462,108 @@ async function submitForm() {
     hours_sat: Number(form.value.hours_sat),
     hours_sun: Number(form.value.hours_sun),
   })
+
+  console.log('StaffFormModal - Schema validation result:', parsed)
+
   if (!parsed.success) {
     error.value = parsed.error.errors[0].message
+    console.error('StaffFormModal - Validation failed:', parsed.error.errors)
+    isLoading.value = false
     return
   }
   try {
+    // Prepare data for API - convert and format fields as expected by PatchedStaff schema
+    const apiData = {
+      ...(props.staff && { id: props.staff.id }), // Include ID for update operations
+      first_name: form.value.first_name,
+      last_name: form.value.last_name,
+      preferred_name: form.value.preferred_name || null,
+      email: form.value.email,
+      wage_rate: form.value.wage_rate ? form.value.wage_rate.toString() : '',
+      ims_payroll_id: form.value.ims_payroll_id || null,
+      is_active: form.value.is_active,
+      is_staff: form.value.is_staff,
+      is_superuser: form.value.is_superuser,
+      hours_mon: form.value.hours_mon ? form.value.hours_mon.toString() : '',
+      hours_tue: form.value.hours_tue ? form.value.hours_tue.toString() : '',
+      hours_wed: form.value.hours_wed ? form.value.hours_wed.toString() : '',
+      hours_thu: form.value.hours_thu ? form.value.hours_thu.toString() : '',
+      hours_fri: form.value.hours_fri ? form.value.hours_fri.toString() : '',
+      hours_sat: form.value.hours_sat ? form.value.hours_sat.toString() : '',
+      hours_sun: form.value.hours_sun ? form.value.hours_sun.toString() : '',
+      // Convert groups and user_permissions from strings to arrays of numbers
+      groups:
+        form.value.groups && form.value.groups.trim()
+          ? form.value.groups
+              .split(',')
+              .map((g) => parseInt(g.trim()))
+              .filter((g) => !isNaN(g))
+          : [],
+      user_permissions:
+        form.value.user_permissions && form.value.user_permissions.trim()
+          ? form.value.user_permissions
+              .split(',')
+              .map((p) => parseInt(p.trim()))
+              .filter((p) => !isNaN(p))
+          : [],
+      // Handle datetime fields properly - omit if empty, include if valid
+      ...(form.value.last_login &&
+        form.value.last_login.trim() && { last_login: form.value.last_login }),
+      date_joined: form.value.date_joined,
+      // Don't send updated_at - it's auto-managed by backend
+    }
+
+    console.log('StaffFormModal - API data being sent:', apiData)
+    console.log('StaffFormModal - Groups converted:', form.value.groups, '→', apiData.groups)
+    console.log(
+      'StaffFormModal - User permissions converted:',
+      form.value.user_permissions,
+      '→',
+      apiData.user_permissions,
+    )
+    console.log('StaffFormModal - ID included:', apiData.id)
+    console.log(
+      'StaffFormModal - Last login field included:',
+      'last_login' in apiData,
+      apiData.last_login,
+    )
+
     if (props.staff) {
-      await updateStaff(props.staff.id, form.value)
+      await updateStaff(props.staff.id, apiData)
+      toast.success('Staff member updated successfully!')
     } else {
-      await createStaff(form.value)
+      await createStaff(apiData)
+      toast.success('Staff member created successfully!')
     }
     emit('saved')
   } catch (e) {
+    console.error('StaffFormModal - Save error:', e)
     if (e instanceof Error) {
-      error.value = e.message
+      // Extract meaningful error message from API response
+      let errorMessage = 'Failed to save staff member.'
+      if (e.message.includes('400') && e.message.includes('AxiosError')) {
+        // Try to extract specific validation errors from the response
+        const response = (e as Error & { response?: { data?: Record<string, string | string[]> } })
+          .response
+        if (response?.data) {
+          const errors = Object.entries(response.data)
+            .map(([field, messages]) => {
+              const fieldName = field.charAt(0).toUpperCase() + field.slice(1).replace('_', ' ')
+              const errorMessages = Array.isArray(messages) ? messages.join(', ') : messages
+              return `${fieldName}: ${errorMessages}`
+            })
+            .join('\n')
+          errorMessage = `Validation errors:\n${errors}`
+        }
+      } else {
+        errorMessage = e.message
+      }
+      toast.error(errorMessage)
     } else {
-      error.value = 'Failed to save staff.'
+      toast.error('Failed to save staff member.')
     }
+  } finally {
+    isLoading.value = false
   }
 }
 </script>

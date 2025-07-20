@@ -3,7 +3,8 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { getApiBaseUrl } from '../plugins/axios'
 import { toast } from 'vue-sonner'
-import { debugLog } from '@/utils/debug'
+import { debugLog } from '../utils/debug'
+import { type XeroSseEvent } from '../api/local/schemas'
 
 export function useXeroAuth() {
   const router = useRouter()
@@ -199,21 +200,7 @@ export function useXeroAuth() {
     const sseUrl = `${getApiBaseUrl()}/api/xero/sync-stream/`
     eventSource.value = new EventSource(sseUrl, { withCredentials: true })
     eventSource.value.onmessage = (event: MessageEvent) => {
-      type SseEvt = {
-        datetime: string
-        message: string
-        severity?: 'info' | 'warning' | 'error'
-        entity?: string | null
-        progress?: number | null
-        records_updated?: number | null
-        status?: string | null
-        overall_progress?: number
-        entity_progress?: number
-        sync_status?: 'success' | 'error' | 'running'
-        error_messages?: string[]
-        missing_fields?: string[]
-      }
-      const data = JSON.parse(event.data) as SseEvt
+      const data = JSON.parse(event.data) as XeroSseEvent
       if (!data) return
       log.value.push({
         datetime: data.datetime,

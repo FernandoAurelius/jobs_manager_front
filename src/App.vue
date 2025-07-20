@@ -12,7 +12,6 @@ import { onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { Toaster } from '@/components/ui/sonner'
 import 'vue-sonner/style.css'
-import '@/plugins/axios'
 import { useFeatureFlags } from './stores/feature-flags'
 import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
 

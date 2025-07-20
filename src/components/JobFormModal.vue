@@ -23,8 +23,16 @@
           />
         </label>
         <div class="flex justify-end gap-2 mt-2">
-          <Button type="button" variant="outline" @click="$emit('close')">Cancel</Button>
-          <Button type="submit">{{ job ? 'Save Changes' : 'Create Job' }}</Button>
+          <Button type="button" variant="outline" @click="$emit('close')" :disabled="isLoading"
+            >Cancel</Button
+          >
+          <Button type="submit" :disabled="isLoading">
+            <div v-if="isLoading" class="flex items-center gap-2">
+              <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              {{ job ? 'Saving...' : 'Creating...' }}
+            </div>
+            <span v-else>{{ job ? 'Save Changes' : 'Create Job' }}</span>
+          </Button>
         </div>
       </form>
     </DialogContent>
@@ -40,21 +48,20 @@ import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { ref, watch } from 'vue'
 import { createDjangoJob, updateDjangoJob } from '@/services/django-jobs-service'
+import { schemas } from '@/api/generated/api'
+import { z } from 'zod'
 
-interface DjangoJobForm {
+type DjangoJob = z.infer<typeof schemas.DjangoJob>
+type DjangoJobForm = {
   id: string
   next_run_time: string
   job_state: string
 }
 
-interface DjangoJob {
-  id: string
-  next_run_time: string | null
-  job_state: string
-}
-
 const props = defineProps<{ job: DjangoJob | null }>()
 const emit = defineEmits(['close', 'saved'])
+
+const isLoading = ref(false)
 
 const form = ref<DjangoJobForm>({
   id: '',
@@ -79,15 +86,22 @@ watch(
 )
 
 async function submitForm() {
-  if (props.job) {
-    await updateDjangoJob(props.job.id, {
-      next_run_time: form.value.next_run_time,
-      job_state: form.value.job_state,
-    })
-  } else {
-    await createDjangoJob(form.value)
+  isLoading.value = true
+  try {
+    if (props.job) {
+      await updateDjangoJob(props.job.id, {
+        next_run_time: form.value.next_run_time,
+        job_state: form.value.job_state,
+      })
+    } else {
+      await createDjangoJob(form.value)
+    }
+    emit('saved')
+  } catch (error) {
+    console.error('Error submitting form:', error)
+  } finally {
+    isLoading.value = false
   }
-  emit('saved')
 }
 </script>
 

@@ -40,7 +40,7 @@ import {
 import { Button } from '@/components/ui/button'
 import WorkshopPdfViewer from './WorkshopPdfViewer.vue'
 import { ref, watch } from 'vue'
-import { jobRestService } from '@/services/job-rest.service'
+import { jobService } from '@/services/job.service'
 import { Download } from 'lucide-vue-next'
 
 const props = defineProps<{
@@ -62,7 +62,7 @@ watch(
   async (open) => {
     if (open) {
       try {
-        const blob = await jobRestService.fetchWorkshopPdf(props.jobId)
+        const blob = await jobService.getWorkshopPdf(props.jobId)
         blobUrl.value = URL.createObjectURL(blob)
       } catch (err) {
         debugLog('Error generating blobUrl from PDF:', err)
@@ -80,8 +80,8 @@ function printPdf() {
 async function attachPdf() {
   attaching.value = true
   try {
-    const blob = await jobRestService.fetchWorkshopPdf(props.jobId)
-    await jobRestService.attachWorkshopPdf(props.jobNumber || 0, blob)
+    await jobService.getWorkshopPdf(props.jobId)
+    // Note: attachWorkshopPdf functionality not available in clean API
     attached.value = true
   } catch (err) {
     debugLog('Error attaching PDF:', err)

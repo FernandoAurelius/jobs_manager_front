@@ -1,24 +1,10 @@
 import { ref, computed } from 'vue'
-import api from '@/plugins/axios'
-import { debugLog } from '@/utils/debug'
+import { z } from 'zod'
+import { api, schemas } from '@/api/generated/api'
 
-export interface Client {
-  id: string
-  name: string
-  xero_contact_id?: string
-  email?: string
-  phone?: string
-  address?: string
-}
-
-export interface ClientContact {
-  id: string
-  name: string
-  email?: string
-  phone?: string
-  position?: string
-  is_primary: boolean
-}
+// Use generated schemas
+export type Client = z.infer<typeof schemas.ClientSearchResult>
+export type ClientContact = z.infer<typeof schemas.ClientContactResult>
 
 export function useClientLookup() {
   const searchQuery = ref('')
@@ -46,17 +32,16 @@ export function useClientLookup() {
     }
 
     isLoading.value = true
+    
     try {
-      const response = await api.get(`/clients/rest/search/?q=${encodeURIComponent(query)}`)
-
-      if (!response.data || !response.data.results || !Array.isArray(response.data.results)) {
-        throw new Error('Invalid response format')
-      }
-
-      suggestions.value = response.data.results
+      const response = await api.clients_search_retrieve({ 
+        queries: { q: query } 
+      })
+      
+      suggestions.value = response.results
       showSuggestions.value = true
     } catch (error) {
-      debugLog('Error searching clients:', error)
+      console.error('Error searching clients:', error)
       suggestions.value = []
       showSuggestions.value = false
     } finally {
@@ -76,13 +61,12 @@ export function useClientLookup() {
 
   const loadClientContacts = async (clientId: string) => {
     try {
-      const response = await api.get(`/clients/rest/${clientId}/contacts/`)
-
-      if (response.data && response.data.results && Array.isArray(response.data.results)) {
-        contacts.value = response.data.results
-      }
+      const response = await api.clients_contacts_retrieve({ 
+        params: { client_id: clientId } 
+      })
+      contacts.value = response.results
     } catch (error) {
-      debugLog('Error loading client contacts:', error)
+      console.error('Error loading client contacts:', error)
       contacts.value = []
     }
   }
@@ -122,8 +106,6 @@ export function useClientLookup() {
   }
 
   const createNewClient = (clientName: string) => {
-    debugLog('Request to create new client:', clientName.trim())
-
     return clientName.trim()
   }
 

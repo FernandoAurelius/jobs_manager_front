@@ -1,7 +1,11 @@
 import { ref, computed } from 'vue'
-import { useDeviceDetection } from '@/composables/useDeviceDetection'
-import type { Job } from '@/types'
-import { debugLog } from '@/utils/debug'
+import { useDeviceDetection } from '../composables/useDeviceDetection'
+import { schemas } from '../api/generated/api'
+import { debugLog } from '../utils/debug'
+import type { z } from 'zod'
+
+// Use KanbanJob for mobile job movement
+type Job = z.infer<typeof schemas.KanbanJob>
 
 export function useMobileJobMovement() {
   const { isMobile, isTablet } = useDeviceDetection()

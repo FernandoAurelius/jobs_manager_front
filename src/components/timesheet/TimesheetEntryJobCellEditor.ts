@@ -1,6 +1,10 @@
 import type { ICellEditor, ICellEditorParams } from 'ag-grid-community'
-import type { JobSelectionItem } from '@/types/timesheet.types'
+import { schemas } from '@/api/generated/api'
 import { debugLog } from '@/utils/debug'
+import { useTimesheetStore } from '@/stores/timesheet'
+import type { z } from 'zod'
+
+type JobSelectionItem = z.infer<typeof schemas.ModernTimesheetJob>
 
 export class TimesheetEntryJobCellEditor implements ICellEditor {
   private value: string = ''
@@ -17,10 +21,11 @@ export class TimesheetEntryJobCellEditor implements ICellEditor {
     this.value = params.value || ''
     this.params = params
 
-    const win = window as unknown as { timesheetJobs?: unknown }
-    if (Array.isArray(win.timesheetJobs)) {
-      this.jobs = win.timesheetJobs as JobSelectionItem[]
-      debugLog('📋 Jobs loaded for timesheet:', {
+    // Get jobs from cell editor params if available, otherwise try to use the timesheet store
+    const editorParams = params as ICellEditorParams & { jobs?: { value: JobSelectionItem[] } }
+    if (editorParams.jobs && Array.isArray(editorParams.jobs.value)) {
+      this.jobs = editorParams.jobs.value as JobSelectionItem[]
+      debugLog('📋 Jobs loaded from cell editor params:', {
         count: this.jobs.length,
         sample: this.jobs[0]
           ? {
@@ -30,9 +35,33 @@ export class TimesheetEntryJobCellEditor implements ICellEditor {
           : 'no jobs',
       })
     } else {
-      this.jobs = []
-      debugLog('⚠️ No jobs found in window.timesheetJobs:', win.timesheetJobs)
+      // Fallback to timesheet store
+      const timesheetStore = useTimesheetStore()
+      if (timesheetStore.jobs && Array.isArray(timesheetStore.jobs)) {
+        this.jobs = timesheetStore.jobs as JobSelectionItem[]
+        debugLog('📋 Jobs loaded from timesheet store (fallback):', {
+          count: this.jobs.length,
+          sample: this.jobs[0]
+            ? {
+                keys: Object.keys(this.jobs[0]),
+                job: this.jobs[0],
+              }
+            : 'no jobs',
+        })
+      } else {
+        this.jobs = []
+        debugLog('⚠️ No jobs found in cell editor params or timesheet store:', {
+          paramsJobs: editorParams.jobs,
+          storeJobs: timesheetStore.jobs,
+        })
+      }
     }
+
+    // Find the currently selected job if there's a value
+    if (this.value) {
+      this.selectedJob = this.jobs.find((job) => job.job_number.toString() === this.value) || null
+    }
+
     this.filteredJobs = [...this.jobs]
 
     this.createUI()
@@ -56,7 +85,8 @@ export class TimesheetEntryJobCellEditor implements ICellEditor {
 
     this.input = document.createElement('input')
     this.input.type = 'text'
-    this.input.value = this.value
+    // Show job number if a job is selected, otherwise show the raw value
+    this.input.value = this.selectedJob ? this.selectedJob.job_number.toString() : this.value
     this.input.placeholder = 'Search jobs... (start typing job number or name)'
     this.input.style.cssText = `
       width: 100%;
@@ -78,6 +108,7 @@ export class TimesheetEntryJobCellEditor implements ICellEditor {
       left: 0;
       right: 0;
       max-height: 300px;
+      min-width: 350px;
       overflow-y: auto;
       background: white;
       border: 2px solid #4361EE;
@@ -123,15 +154,22 @@ export class TimesheetEntryJobCellEditor implements ICellEditor {
 
   private updateFilteredJobs(searchTerm: string): void {
     if (!searchTerm) {
-      this.filteredJobs = this.jobs.slice(0, 20)
+      // Show ALL jobs by default
+      // Prioritize currently selected job if it exists
+      if (this.selectedJob) {
+        const otherJobs = this.jobs.filter((job) => job.id !== this.selectedJob!.id)
+        this.filteredJobs = [this.selectedJob, ...otherJobs]
+      } else {
+        this.filteredJobs = [...this.jobs]
+      }
     } else {
       const term = searchTerm.toLowerCase()
       this.filteredJobs = this.jobs
         .filter((job) => {
           // Handle different possible field names from API
-          const jobNumber = job.job_number || job.number || job.jobNumber || ''
-          const jobName = job.name || job.job_name || job.jobName || ''
-          const clientName = job.client_name || job.clientName || job.client || ''
+          const jobNumber = job.job_number
+          const jobName = job.name || ''
+          const clientName = job.client_name || ''
 
           return (
             jobNumber.toString().toLowerCase().includes(term) ||
@@ -171,11 +209,11 @@ export class TimesheetEntryJobCellEditor implements ICellEditor {
       const searchTerm = this.input.value.toLowerCase()
 
       // Handle different possible field names from API
-      const jobNumber = job.job_number || job.number || job.jobNumber || 'N/A'
-      const jobName = job.name || job.job_name || job.jobName || 'Unnamed Job'
-      const clientName = job.client_name || job.clientName || job.client || 'Unknown Client'
-      const chargeOutRate = job.charge_out_rate || job.chargeOutRate || job.rate || 0
-      const status = job.status || 'active'
+      const jobNumber = job.job_number
+      const jobName = job.name || ''
+      const clientName = job.client_name || 'No Client'
+      const chargeOutRate = job.charge_out_rate
+      const status = job.status
 
       const highlightedJobNumber = this.highlightText(jobNumber.toString(), searchTerm)
       const highlightedJobName = this.highlightText(jobName, searchTerm)
@@ -183,14 +221,14 @@ export class TimesheetEntryJobCellEditor implements ICellEditor {
 
       item.innerHTML = `
         <div style="display: flex; flex-direction: column; gap: 2px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-weight: 600; color: #1F2937;">#${highlightedJobNumber}</span>
-            <span style="font-size: 12px; color: ${this.getStatusColor(status)}; font-weight: 500;">
-              ${status.toUpperCase()}
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+            <span style="font-weight: 600; color: #1F2937; flex-shrink: 0;">#${highlightedJobNumber}</span>
+            <span style="font-size: 11px; color: ${this.getStatusColor(status)}; font-weight: 500; text-align: right; line-height: 1.2; flex-shrink: 1; min-width: 0; word-wrap: break-word;">
+              ${this.getStatusDisplayName(status)}
             </span>
           </div>
-          <div style="font-size: 14px; color: #374151; font-weight: 500;">${highlightedJobName}</div>
-          <div style="font-size: 12px; color: #6B7280;">Client: ${highlightedClientName}</div>
+          <div style="font-size: 14px; color: #374151; font-weight: 500; line-height: 1.3; word-wrap: break-word;">${highlightedJobName}</div>
+          <div style="font-size: 12px; color: #6B7280; line-height: 1.2;">Client: ${highlightedClientName}</div>
           <div style="font-size: 11px; color: #9CA3AF;">
             Rate: $${chargeOutRate}/hr
           </div>
@@ -226,16 +264,56 @@ export class TimesheetEntryJobCellEditor implements ICellEditor {
 
   private getStatusColor(status: string): string {
     switch (status) {
-      case 'active':
+      case 'approved':
+      case 'accepted_quote':
+      case 'awaiting_materials':
+      case 'awaiting_staff':
+      case 'awaiting_site_availability':
       case 'in_progress':
-        return '#059669'
+        return '#059669' // Green for active/ready work
       case 'completed':
-        return '#6B7280'
+      case 'recently_completed':
+      case 'archived':
+        return '#6B7280' // Gray for finished
       case 'special':
-      case 'shop':
-        return '#DC2626'
+        return '#DC2626' // Red for special jobs
+      case 'draft':
+      case 'quoting':
+        return '#D97706' // Orange for in preparation
+      case 'awaiting_approval':
+        return '#3B82F6' // Blue for awaiting approval
+      case 'on_hold':
+      case 'unusual':
+        return '#EAB308' // Yellow for attention needed
+      case 'rejected':
+        return '#EF4444' // Red for rejected
       default:
-        return '#D97706'
+        return '#D97706' // Orange for unknown status
+    }
+  }
+
+  private getStatusDisplayName(status: string): string {
+    switch (status) {
+      case 'draft':
+        return 'Draft'
+      case 'awaiting_approval':
+        return 'Awaiting Approval'
+      case 'approved':
+        return 'Approved'
+      case 'in_progress':
+        return 'In Progress'
+      case 'recently_completed':
+        return 'Recently Completed'
+      case 'archived':
+        return 'Archived'
+      case 'special':
+        return 'Special'
+      case 'on_hold':
+        return 'On Hold'
+      case 'unusual':
+        return 'Unusual'
+      default:
+        return 'Unknown'
     }
   }
 
@@ -299,12 +377,12 @@ export class TimesheetEntryJobCellEditor implements ICellEditor {
     this.selectedJob = job
 
     // Handle different possible field names from API
-    const jobNumber = job.job_number || job.number || job.jobNumber || ''
-    const jobName = job.name || job.job_name || job.jobName || ''
-    const clientName = job.client_name || job.clientName || job.client || ''
-    const chargeOutRate = job.charge_out_rate || job.chargeOutRate || job.rate || 0
-    const jobId = job.id || job.job_id || job.jobId || ''
-    const status = job.status || 'active'
+    const jobNumber = job.job_number
+    const jobName = job.name
+    const clientName = job.client_name
+    const chargeOutRate = job.charge_out_rate
+    const jobId = job.id
+    const status = job.status
 
     this.value = jobNumber.toString()
     this.input.value = jobNumber.toString()
@@ -336,7 +414,8 @@ export class TimesheetEntryJobCellEditor implements ICellEditor {
       rowData.client = clientName
       rowData.jobName = jobName
       rowData.chargeOutRate = chargeOutRate
-      rowData.billable = status !== 'special' && status !== 'shop'
+      // Based on backend Job model: special jobs are shop jobs (non-billable), rejected jobs are not billable
+      rowData.billable = status !== 'special' && status !== 'rejected'
 
       const hours = rowData.hours || 0
       const rate = rowData.rate || 'Ord'
@@ -364,9 +443,10 @@ export class TimesheetEntryJobCellEditor implements ICellEditor {
 
       debugLog('💰 Using wage rate:', wageRate, 'for', hours, 'hours with multiplier', multiplier)
 
+      const chargeOutRateNum = parseFloat(chargeOutRate) || 0
       rowData.bill =
-        rowData.billable && hours > 0 && chargeOutRate > 0
-          ? Math.round(hours * chargeOutRate * 100) / 100
+        rowData.billable && hours > 0 && chargeOutRateNum > 0
+          ? Math.round(hours * chargeOutRateNum * 100) / 100
           : 0
 
       debugLog('💰 Calculated wage:', rowData.wage, 'and bill:', rowData.bill)
@@ -398,25 +478,17 @@ export class TimesheetEntryJobCellEditor implements ICellEditor {
   getValue(): string {
     if (this.selectedJob) {
       // Handle different possible field names from API
-      const jobNumber =
-        this.selectedJob.job_number || this.selectedJob.number || this.selectedJob.jobNumber || ''
+      const jobNumber = this.selectedJob.job_number
 
       // Store normalized job data
       const normalizedJob = {
         ...this.selectedJob,
         job_number: jobNumber.toString(),
-        name: this.selectedJob.name || this.selectedJob.job_name || this.selectedJob.jobName || '',
-        client_name:
-          this.selectedJob.client_name ||
-          this.selectedJob.clientName ||
-          this.selectedJob.client ||
-          '',
-        charge_out_rate:
-          this.selectedJob.charge_out_rate ||
-          this.selectedJob.chargeOutRate ||
-          this.selectedJob.rate ||
-          0,
-        id: this.selectedJob.id || this.selectedJob.job_id || this.selectedJob.jobId || '',
+        name: this.selectedJob.name,
+        client_name: this.selectedJob.client_name,
+        charge_out_rate: this.selectedJob.charge_out_rate,
+        id: this.selectedJob.id,
+        status: this.selectedJob.status,
       }
 
       ;(window as unknown as { lastSelectedJob: JobSelectionItem }).lastSelectedJob = normalizedJob

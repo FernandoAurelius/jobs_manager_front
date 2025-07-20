@@ -1,7 +1,4 @@
-export interface MetalTypeOption {
-  value: string
-  label: string
-}
+import { type MetalTypeOption } from '@/api/local/schemas'
 
 export const metalTypeOptions: MetalTypeOption[] = [
   { value: 'stainless_steel', label: 'Stainless Steel' },

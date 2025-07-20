@@ -170,6 +170,16 @@ const router = createRouter({
           },
         },
         {
+          path: 'uat',
+          name: 'admin-uat',
+          component: () => import('@/views/UATManagementView.vue'),
+          meta: {
+            requiresAuth: true,
+            requiresSuperUser: true,
+            title: 'Manage UAT - Jobs Manager',
+          },
+        },
+        {
           path: '',
           redirect: { name: 'admin-staff' },
         },
@@ -244,6 +254,18 @@ const router = createRouter({
       name: 'kpi-reports',
       component: () => import('@/views/KPIReportsView.vue'),
       meta: { requiresAuth: true, title: 'KPI Reports - Jobs Manager' },
+    },
+    {
+      path: '/reports/job-aging',
+      name: 'job-aging-report',
+      component: () => import('@/views/JobAgingReportView.vue'),
+      meta: { requiresAuth: true, title: 'Job Aging Report - Jobs Manager' },
+    },
+    {
+      path: '/reports/staff-performance',
+      name: 'staff-performance-report',
+      component: () => import('@/views/StaffPerformanceReportView.vue'),
+      meta: { requiresAuth: true, title: 'Staff Performance Report - Jobs Manager' },
     },
   ],
 })

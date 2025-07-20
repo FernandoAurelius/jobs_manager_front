@@ -134,14 +134,15 @@
 import { onMounted, watch } from 'vue'
 import { useQuoteImport } from '@/composables/useQuoteImport'
 
-interface Props {
-  jobId: string
-  autoRefresh?: boolean
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  autoRefresh: false,
-})
+const props = withDefaults(
+  defineProps<{
+    jobId: string
+    autoRefresh?: boolean
+  }>(),
+  {
+    autoRefresh: false,
+  },
+)
 
 const { isLoading, currentQuote, error, loadQuoteStatus } = useQuoteImport()
 

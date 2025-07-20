@@ -201,8 +201,8 @@
 import { debugLog } from '@/utils/debug'
 
 import { ref, watch, computed, onMounted } from 'vue'
-import type { JobData, JobUpdateData } from '@/services/job-rest.service'
-import { jobRestService } from '@/services/job-rest.service'
+import type { JobDetailResponse, JobCreateRequest } from '@/api/generated/api'
+import { jobService } from '@/services/job.service'
 import { useJobsStore } from '@/stores/jobs'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import ClientLookup from '@/components/ClientLookup.vue'
@@ -217,8 +217,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 
-interface Props {
-  jobData: JobData | null
+type Props = {
+  jobData: JobDetailResponse | null
   isOpen: boolean
 }
 
@@ -226,11 +226,12 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
+  'job-updated': [job: JobDetailResponse]
 }>()
 
 const jobsStore = useJobsStore()
 
-const localJobData = ref<Partial<JobData & { status?: string }>>({})
+const localJobData = ref<Partial<JobDetailResponse & { status?: string }>>({})
 const isLoading = ref(false)
 const errorMessages = ref<string[]>([])
 
@@ -245,8 +246,11 @@ const jobStatusChoices = ref<{ value: string; label: string }[]>([])
 
 onMounted(async () => {
   try {
-    const statusMap = await jobRestService.getStatusValues()
-    jobStatusChoices.value = Object.entries(statusMap).map(([value, label]) => ({ value, label }))
+    const statusMap = await jobService.getStatusChoices()
+    jobStatusChoices.value = Object.entries(statusMap).map(([value, label]) => ({
+      value,
+      label: String(label),
+    }))
   } catch {
     jobStatusChoices.value = [
       { value: 'quoting', label: 'Quoting' },
@@ -332,7 +336,7 @@ watch(
   { immediate: true, deep: true },
 )
 
-const sanitizeJobData = (data: Record<string, unknown>): JobUpdateData => {
+const sanitizeJobData = (data: Record<string, unknown>): Partial<JobCreateRequest> => {
   if (!data) return {}
 
   const sanitized: Record<string, unknown> = { ...data }
@@ -439,7 +443,9 @@ const saveSettings = async () => {
       `JobSettingsModal - saveSettings - Sanitized data for job ID: ${props.jobData.id}:`,
       JSON.parse(JSON.stringify(sanitizedData)),
     )
-    const result = await jobRestService.updateJob(props.jobData.id, sanitizedData)
+
+    // Call the real job update API
+    const result = await jobService.updateJob(props.jobData.id, sanitizedData)
 
     debugLog(
       'JobSettingsModal - saveSettings - API call result:',
@@ -558,7 +564,7 @@ const hasValidId = (obj: unknown): boolean => {
 }
 
 const updateJobInStore = (apiData: unknown) => {
-  let jobDataToStore: Partial<JobData> | undefined = undefined
+  let jobDataToStore: Partial<JobDetailResponse> | undefined = undefined
 
   if (typeof apiData === 'object' && apiData !== null) {
     const keys = Object.keys(apiData)
@@ -689,8 +695,11 @@ const updateJobInStore = (apiData: unknown) => {
     } else {
       jobDataToStore.id = String(jobDataToStore.id)
     }
-    jobsStore.setDetailedJob(jobDataToStore as JobData)
+    jobsStore.setDetailedJob(jobDataToStore as JobDetailResponse)
     debugLog(`JobSettingsModal - Called jobsStore.setDetailedJob with job ID: ${jobDataToStore.id}`)
+
+    // Emit job-updated event for parent component
+    emit('job-updated', jobDataToStore as JobDetailResponse)
 
     closeModal()
     debugLog('JobSettingsModal - Settings saved, store updated, event emitted, and modal closed.')

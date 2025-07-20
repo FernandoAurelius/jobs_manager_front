@@ -59,7 +59,7 @@ watch(
   async (open) => {
     if (open) {
       try {
-        toast.loading('Generating PDF...', { id: 'po-pdf-loading' })
+        toast.info('Generating PDF...', { id: 'po-pdf-loading' })
         const blob = await purchaseOrderStore.fetchPurchaseOrderPdf(props.purchaseOrderId)
         blobUrl.value = URL.createObjectURL(blob)
         toast.dismiss('po-pdf-loading')
@@ -70,6 +70,12 @@ watch(
         const errorMessage = err instanceof Error ? err.message : 'Failed to generate PDF'
         toast.error(`PDF generation failed: ${errorMessage}`)
         emit('update:open', false)
+      }
+    } else {
+      // Clean up blob URL when dialog is closed to prevent memory leaks
+      if (blobUrl.value) {
+        URL.revokeObjectURL(blobUrl.value)
+        blobUrl.value = ''
       }
     }
   },

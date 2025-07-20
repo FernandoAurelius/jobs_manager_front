@@ -1,10 +1,10 @@
 import { ref, computed } from 'vue'
-import {
-  quoteImportService,
-  type QuoteImportPreviewResponse,
-  type QuoteImportResponse,
-  type QuoteStatusResponse,
-} from '@/services/quote-import.service'
+import { quoteService } from '@/services/quote.service'
+import type {
+  QuoteImportPreviewResponse,
+  QuoteImportResponse,
+  QuoteStatusResponse,
+} from '@/api/local/schemas'
 import { debugLog } from '@/utils/debug'
 
 export function useQuoteImport() {
@@ -51,7 +51,7 @@ export function useQuoteImport() {
 
     try {
       debugLog('🔍 [useQuoteImport] Loading quote status for jobId:', jobId)
-      currentQuote.value = await quoteImportService.getQuoteStatus(jobId)
+      currentQuote.value = await quoteService.getQuoteStatus(jobId)
       debugLog('✅ [useQuoteImport] Quote status loaded:', currentQuote.value)
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : 'Failed to load quote status'
@@ -67,7 +67,7 @@ export function useQuoteImport() {
     previewData.value = null
 
     try {
-      previewData.value = await quoteImportService.previewQuoteImport(jobId, file)
+      previewData.value = await quoteService.previewQuoteImport(jobId, file)
 
       if (previewData.value.preview.error) {
         error.value = previewData.value.preview.error
@@ -87,7 +87,7 @@ export function useQuoteImport() {
     importResult.value = null
 
     try {
-      importResult.value = await quoteImportService.importQuote(jobId, file, skipValidation)
+      importResult.value = await quoteService.importQuote(jobId, file, skipValidation)
 
       if (!importResult.value.success && importResult.value.error) {
         error.value = importResult.value.error

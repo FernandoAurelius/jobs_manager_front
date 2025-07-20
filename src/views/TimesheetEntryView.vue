@@ -1,27 +1,21 @@
 <template>
   <AppLayout>
-    <div
-      class="bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 min-h-screen flex flex-col"
-    >
+    <div class="bg-gray-50 min-h-screen flex flex-col">
       <div
         v-if="loading"
-        class="sticky top-0 z-20 py-5 bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 backdrop-blur-md border-b border-blue-500/20 flex items-center justify-center min-h-[120px]"
+        class="sticky top-0 z-20 py-5 bg-white border-b border-gray-200 flex items-center justify-center min-h-[120px]"
       >
         <div class="flex flex-col items-center w-full">
-          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
-          <span class="text-blue-100 text-sm">Loading timesheet data...</span>
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mb-2"></div>
+          <span class="text-gray-600 text-sm">Loading timesheet data...</span>
         </div>
       </div>
       <div v-else class="flex-1 flex flex-col">
         <div class="block lg:hidden pt-4">
-          <div
-            class="flex items-center justify-between p-3 border-b border-blue-500/10 bg-slate-900/80"
-          >
+          <div class="flex items-center justify-between p-3 border-b border-gray-200 bg-white">
             <div class="flex items-center space-x-2">
-              <Avatar class="h-8 w-8 ring-2 ring-blue-500/30">
-                <AvatarFallback
-                  class="bg-gradient-to-br from-blue-500 to-cyan-500 text-white font-bold text-xs"
-                >
+              <Avatar class="h-8 w-8 ring-2 ring-gray-300">
+                <AvatarFallback class="bg-gray-600 text-white font-bold text-xs">
                   {{ getStaffInitials(currentStaff) }}
                 </AvatarFallback>
               </Avatar>
@@ -32,7 +26,7 @@
                   size="sm"
                   @click="navigateStaff(-1)"
                   :disabled="!canNavigateStaff(-1)"
-                  class="h-7 w-7 p-0 text-white hover:bg-blue-500/20"
+                  class="h-7 w-7 p-0 text-gray-600 hover:bg-gray-100"
                 >
                   <ChevronLeft class="h-3 w-3" />
                 </Button>
@@ -41,17 +35,15 @@
                   v-model="selectedStaffId"
                   @update:model-value="(value) => handleStaffChange(value as string)"
                 >
-                  <SelectTrigger
-                    class="h-7 w-32 text-xs bg-slate-800/50 border-blue-500/30 text-white"
-                  >
+                  <SelectTrigger class="h-7 w-32 text-xs bg-white border-gray-300 text-gray-900">
                     <SelectValue placeholder="Staff..." />
                   </SelectTrigger>
-                  <SelectContent class="bg-slate-800 border-blue-500/30">
+                  <SelectContent class="bg-white border-gray-200">
                     <SelectItem
-                      v-for="staff in staffList"
+                      v-for="staff in timesheetStore.staff"
                       :key="staff.id"
                       :value="staff.id"
-                      class="text-white hover:bg-blue-500/20 text-xs"
+                      class="text-gray-900 hover:bg-gray-100 text-xs"
                     >
                       {{ staff.firstName }} {{ staff.lastName }}
                     </SelectItem>
@@ -63,31 +55,31 @@
                   size="sm"
                   @click="navigateStaff(1)"
                   :disabled="!canNavigateStaff(1)"
-                  class="h-7 w-7 p-0 text-white hover:bg-blue-500/20"
+                  class="h-7 w-7 p-0 text-gray-600 hover:bg-gray-100"
                 >
                   <ChevronRight class="h-3 w-3" />
                 </Button>
               </div>
             </div>
 
-            <div class="text-xs text-blue-200">
+            <div class="text-xs text-gray-700">
               <span class="font-semibold">{{ todayStats.totalHours.toFixed(1) }}h</span>
             </div>
           </div>
 
-          <div class="flex items-center justify-between p-3 bg-slate-900/80">
+          <div class="flex items-center justify-between p-3 bg-white">
             <div class="flex items-center space-x-1">
               <Button
                 variant="ghost"
                 size="sm"
                 @click="navigateDate(-1)"
-                class="h-7 w-7 p-0 text-white hover:bg-blue-500/20"
+                class="h-7 w-7 p-0 text-gray-600 hover:bg-gray-100"
               >
                 <ChevronLeft class="h-3 w-3" />
               </Button>
 
               <div
-                class="text-white font-medium text-xs px-2 py-1 bg-slate-800/50 rounded border border-blue-500/30"
+                class="text-gray-900 font-medium text-xs px-2 py-1 bg-gray-100 rounded border border-gray-300"
               >
                 {{ formatShortDate(currentDate) }}
               </div>
@@ -96,7 +88,7 @@
                 variant="ghost"
                 size="sm"
                 @click="navigateDate(1)"
-                class="h-7 w-7 p-0 text-white hover:bg-blue-500/20"
+                class="h-7 w-7 p-0 text-gray-600 hover:bg-gray-100"
               >
                 <ChevronRight class="h-3 w-3" />
               </Button>
@@ -105,9 +97,18 @@
                 variant="ghost"
                 size="sm"
                 @click="goToToday"
-                class="h-7 text-xs px-2 text-white hover:bg-blue-500/20"
+                class="h-7 text-xs px-2 text-gray-600 hover:bg-gray-100"
               >
                 Today
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                @click="goToDailyOverview"
+                class="h-7 text-xs px-2 text-gray-600 hover:bg-gray-100"
+              >
+                Daily Overview
               </Button>
             </div>
 
@@ -116,7 +117,7 @@
                 @click="addNewEntry"
                 size="sm"
                 variant="default"
-                class="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white border-blue-500"
+                class="h-7 text-xs px-2 bg-gray-600 hover:bg-gray-700 text-white border-gray-500"
               >
                 <Plus class="h-3 w-3" />
               </Button>
@@ -136,7 +137,7 @@
                 variant="ghost"
                 size="sm"
                 :disabled="loading"
-                class="h-7 w-7 p-0 text-white hover:bg-blue-500/20"
+                class="h-7 w-7 p-0 text-gray-600 hover:bg-gray-100"
               >
                 <RefreshCw :class="['h-3 w-3', { 'animate-spin': loading }]" />
               </Button>
@@ -145,7 +146,7 @@
                 @click="showHelpModal = true"
                 variant="ghost"
                 size="sm"
-                class="h-7 w-7 p-0 text-white hover:bg-blue-500/20"
+                class="h-7 w-7 p-0 text-gray-600 hover:bg-gray-100"
               >
                 <HelpCircle class="h-3 w-3" />
               </Button>
@@ -153,14 +154,10 @@
           </div>
         </div>
 
-        <div
-          class="hidden lg:flex items-center h-16 px-6 pt-4 bg-slate-900/80 border-b border-blue-500/10"
-        >
+        <div class="hidden lg:flex items-center h-16 px-6 pt-4 bg-white border-b border-gray-200">
           <div class="flex items-center space-x-4">
-            <Avatar class="h-10 w-10 ring-2 ring-blue-500/30">
-              <AvatarFallback
-                class="bg-gradient-to-br from-blue-500 to-cyan-500 text-white font-bold"
-              >
+            <Avatar class="h-10 w-10 ring-2 ring-gray-300">
+              <AvatarFallback class="bg-gray-600 text-white font-bold">
                 {{ getStaffInitials(currentStaff) }}
               </AvatarFallback>
             </Avatar>
@@ -171,7 +168,7 @@
                 size="sm"
                 @click="navigateStaff(-1)"
                 :disabled="!canNavigateStaff(-1)"
-                class="text-white hover:bg-blue-500/20"
+                class="text-gray-600 hover:bg-gray-100"
               >
                 <ChevronLeft class="h-4 w-4" />
               </Button>
@@ -180,15 +177,15 @@
                 v-model="selectedStaffId"
                 @update:model-value="(value) => handleStaffChange(value as string)"
               >
-                <SelectTrigger class="w-48 bg-slate-800/50 border-blue-500/30 text-white">
+                <SelectTrigger class="w-48 bg-white border-gray-300 text-gray-900">
                   <SelectValue placeholder="Select staff..." />
                 </SelectTrigger>
-                <SelectContent class="bg-slate-800 border-blue-500/30">
+                <SelectContent class="bg-white border-gray-200">
                   <SelectItem
-                    v-for="staff in staffList"
+                    v-for="staff in timesheetStore.staff"
                     :key="staff.id"
                     :value="staff.id"
-                    class="text-white hover:bg-blue-500/20"
+                    class="text-gray-900 hover:bg-gray-100"
                   >
                     {{ staff.firstName }} {{ staff.lastName }}
                   </SelectItem>
@@ -200,7 +197,7 @@
                 size="sm"
                 @click="navigateStaff(1)"
                 :disabled="!canNavigateStaff(1)"
-                class="text-white hover:bg-blue-500/20"
+                class="text-gray-600 hover:bg-gray-100"
               >
                 <ChevronRight class="h-4 w-4" />
               </Button>
@@ -212,13 +209,13 @@
               variant="ghost"
               size="sm"
               @click="navigateDate(-1)"
-              class="text-white hover:bg-blue-500/20"
+              class="text-gray-600 hover:bg-gray-100"
             >
               <ChevronLeft class="h-4 w-4" />
             </Button>
 
             <div
-              class="text-white font-semibold px-4 py-2 bg-slate-800/50 rounded-md border border-blue-500/30"
+              class="text-gray-900 font-semibold px-4 py-2 bg-gray-100 rounded-md border border-gray-300"
             >
               {{ formatDisplayDate(currentDate) }}
             </div>
@@ -227,7 +224,7 @@
               variant="ghost"
               size="sm"
               @click="navigateDate(1)"
-              class="text-white hover:bg-blue-500/20"
+              class="text-gray-600 hover:bg-gray-100"
             >
               <ChevronRight class="h-4 w-4" />
             </Button>
@@ -236,14 +233,23 @@
               variant="ghost"
               size="sm"
               @click="goToToday"
-              class="text-white hover:bg-blue-500/20 ml-2"
+              class="text-gray-600 hover:bg-gray-100 ml-2"
             >
               Today
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              @click="goToDailyOverview"
+              class="text-gray-600 hover:bg-gray-100 ml-2"
+            >
+              Daily Overview
             </Button>
           </div>
 
           <div class="flex items-center space-x-2 ml-auto">
-            <div class="text-xs text-blue-200 mr-4">
+            <div class="text-xs text-gray-700 mr-4">
               <span class="font-semibold">{{ todayStats.totalHours.toFixed(1) }}h</span> Total
             </div>
 
@@ -251,7 +257,7 @@
               @click="addNewEntry"
               size="sm"
               variant="default"
-              class="bg-blue-600 hover:bg-blue-700 text-white border-blue-500"
+              class="bg-gray-600 hover:bg-gray-700 text-white border-gray-500"
             >
               <Plus class="h-4 w-4 mr-1" />
               Add Entry
@@ -273,7 +279,7 @@
               variant="ghost"
               size="sm"
               :disabled="loading"
-              class="text-white hover:bg-blue-500/20"
+              class="text-gray-600 hover:bg-gray-100"
             >
               <RefreshCw :class="['h-4 w-4', { 'animate-spin': loading }]" />
             </Button>
@@ -282,7 +288,7 @@
               @click="showHelpModal = true"
               variant="ghost"
               size="sm"
-              class="text-white hover:bg-blue-500/20"
+              class="text-gray-600 hover:bg-gray-100"
             >
               <HelpCircle class="h-4 w-4" />
             </Button>
@@ -293,25 +299,22 @@
           class="flex-1 flex flex-col overflow-hidden"
           :class="'h-[calc(100vh-6rem)] lg:h-[calc(100vh-4rem)]'"
         >
-          <div
-            v-if="loading"
-            class="flex-1 flex items-center justify-center bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900"
-          >
+          <div v-if="loading" class="flex-1 flex items-center justify-center bg-gray-50">
             <div class="text-center">
               <div
-                class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"
+                class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mx-auto mb-4"
               ></div>
-              <p class="text-blue-100 text-sm lg:text-base">Loading timesheet...</p>
+              <p class="text-gray-600 text-sm lg:text-base">Loading timesheet...</p>
             </div>
           </div>
 
           <div v-else-if="error" class="flex-1 flex items-center justify-center">
             <div class="text-center px-4">
               <AlertTriangle class="h-8 w-8 lg:h-12 lg:w-12 text-red-500 mx-auto mb-4" />
-              <h3 class="text-base lg:text-lg font-semibold text-slate-900 mb-2">
+              <h3 class="text-base lg:text-lg font-semibold text-gray-900 mb-2">
                 Error Loading Timesheet
               </h3>
-              <p class="text-sm lg:text-base text-slate-600 mb-4">{{ error }}</p>
+              <p class="text-sm lg:text-base text-gray-600 mb-4">{{ error }}</p>
               <Button @click="reloadData" variant="outline" size="sm">
                 <RefreshCw class="h-3 w-3 lg:h-4 lg:w-4 mr-2" />
                 Retry
@@ -321,7 +324,7 @@
 
           <div
             v-else
-            class="flex-1 bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 shadow-sm border border-blue-900/20 rounded-lg m-2 lg:m-4 overflow-hidden"
+            class="flex-1 bg-white shadow-sm border border-gray-200 rounded-lg m-2 lg:m-4 overflow-hidden"
           >
             <div class="h-full">
               <AgGridVue
@@ -337,26 +340,26 @@
             </div>
           </div>
 
-          <div class="bg-slate-900/80 border-t border-blue-900/30 p-2 lg:hidden">
+          <div class="bg-white border-t border-gray-200 p-2 lg:hidden">
             <div class="flex items-center justify-between text-xs">
               <div class="flex items-center space-x-3">
                 <div class="flex items-center space-x-1">
-                  <Clock class="h-3 w-3 text-slate-500" />
-                  <span class="font-medium text-slate-700">
+                  <Clock class="h-3 w-3 text-gray-500" />
+                  <span class="font-medium text-gray-700">
                     {{ todayStats.totalHours.toFixed(1) }}h
                   </span>
                 </div>
 
                 <div class="flex items-center space-x-1">
                   <DollarSign class="h-3 w-3 text-green-600" />
-                  <span class="font-medium text-slate-700">
+                  <span class="font-medium text-gray-700">
                     ${{ todayStats.totalBill.toFixed(0) }}
                   </span>
                 </div>
 
                 <div class="flex items-center space-x-1">
-                  <TrendingUp class="h-3 w-3 text-blue-600" />
-                  <span class="font-medium text-slate-700">
+                  <TrendingUp class="h-3 w-3 text-gray-600" />
+                  <span class="font-medium text-gray-700">
                     {{ todayStats.entryCount }}
                   </span>
                 </div>
@@ -370,31 +373,31 @@
           </div>
 
           <div
-            class="hidden lg:flex h-16 bg-slate-900/80 border-t border-blue-900/30 items-center justify-between px-6"
+            class="hidden lg:flex h-16 bg-white border-t border-gray-200 items-center justify-between px-6"
           >
             <div class="flex items-center space-x-6">
               <div class="flex items-center space-x-2">
-                <Clock class="h-4 w-4 text-slate-500" />
-                <span class="text-sm font-medium text-slate-700">
+                <Clock class="h-4 w-4 text-gray-500" />
+                <span class="text-sm font-medium text-gray-700">
                   Total: {{ todayStats.totalHours.toFixed(1) }}h
                 </span>
               </div>
 
               <div class="flex items-center space-x-2">
                 <DollarSign class="h-4 w-4 text-green-600" />
-                <span class="text-sm font-medium text-slate-700">
+                <span class="text-sm font-medium text-gray-700">
                   Bill: ${{ todayStats.totalBill.toFixed(2) }}
                 </span>
               </div>
 
               <div class="flex items-center space-x-2">
-                <TrendingUp class="h-4 w-4 text-blue-600" />
-                <span class="text-sm font-medium text-slate-700">
+                <TrendingUp class="h-4 w-4 text-gray-600" />
+                <span class="text-sm font-medium text-gray-700">
                   Entries: {{ todayStats.entryCount }}
                 </span>
               </div>
             </div>
-            <div v-if="hasUnsavedChanges" class="flex items-center space-x-2 text-amber-400">
+            <div v-if="hasUnsavedChanges" class="flex items-center space-x-2 text-amber-600">
               <AlertCircle class="h-4 w-4" />
               <span class="text-sm font-medium">Unsaved changes</span>
             </div>
@@ -466,42 +469,20 @@ import {
   AlertCircle,
 } from 'lucide-vue-next'
 
-import type { CostLine } from '@/types/costing.types'
-import { CompanyDefaultsService } from '@/services/company-defaults.service'
 import { useTimesheetEntryGrid } from '@/composables/useTimesheetEntryGrid'
 import { useTimesheetStore } from '@/stores/timesheet'
+import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
 import * as costlineService from '@/services/costline.service'
 
-// Local type definitions
-interface Job {
-  id: string
-  jobNumber: string
-  jobName: string
-  clientName: string
-  chargeOutRate: number
-  number?: string
-  name?: string
-  status?: string
-  displayName?: string
-}
-
-interface Staff {
-  id: string
-  firstName: string
-  lastName: string
-  wageRate: number
-  fullName: string
-  name?: string
-}
-
-interface CompanyDefaults {
-  defaultWageRate: number
-  defaultChargeOutRate: number
-}
+// Import types from generated API schemas
+import type { Job, Staff, TimesheetCostLine, CostLine } from '@/api/generated/api'
+// Import UI-specific types from local schemas
+import type { TimesheetEntryWithMeta } from '@/api/local/schemas'
 
 const router = useRouter()
 const route = useRoute()
 const timesheetStore = useTimesheetStore()
+const companyDefaultsStore = useCompanyDefaultsStore()
 
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -521,13 +502,10 @@ const currentDate = ref<string>(initialDate)
 const selectedStaffId = ref<string>(initialStaffId)
 const isInitializing = ref(true)
 
-const staffList = ref<Staff[]>([])
-const jobsList = ref<Job[]>([])
 const timeEntries = ref<TimesheetEntryWithMeta[]>([])
-const companyDefaults = ref<CompanyDefaults | null>(null)
 
 const currentStaff = computed(
-  () => staffList.value.find((s) => s.id === selectedStaffId.value) || null,
+  () => timesheetStore.staff.find((s) => s.id === selectedStaffId.value) || null,
 )
 
 const hasUnsavedChanges = ref(false)
@@ -553,26 +531,32 @@ const {
   gridOptions,
   setGridApi,
   loadData,
+  addNewRow,
   getGridData,
   handleKeyboardShortcut,
   handleCellValueChanged: gridHandleCellValueChanged,
-} = useTimesheetEntryGrid(companyDefaults, handleSaveEntry, handleDeleteEntry)
+} = useTimesheetEntryGrid(
+  companyDefaultsStore.companyDefaults,
+  timesheetStore.jobs, // Pass jobs from timesheet store
+  handleSaveEntry,
+  handleDeleteEntry,
+)
 
 const canNavigateStaff = (direction: number): boolean => {
-  if (!staffList.value.length) return false
-  const currentIndex = staffList.value.findIndex((s) => s.id === selectedStaffId.value)
+  if (!timesheetStore.staff.length) return false
+  const currentIndex = timesheetStore.staff.findIndex((s) => s.id === selectedStaffId.value)
   if (currentIndex === -1) return false
 
   const newIndex = currentIndex + direction
-  return newIndex >= 0 && newIndex < staffList.value.length
+  return newIndex >= 0 && newIndex < timesheetStore.staff.length
 }
 
 const navigateStaff = (direction: number) => {
   if (!canNavigateStaff(direction)) return
 
-  const currentIndex = staffList.value.findIndex((s) => s.id === selectedStaffId.value)
+  const currentIndex = timesheetStore.staff.findIndex((s) => s.id === selectedStaffId.value)
   const newIndex = currentIndex + direction
-  const newStaff = staffList.value[newIndex]
+  const newStaff = timesheetStore.staff[newIndex]
 
   if (newStaff) {
     selectedStaffId.value = newStaff.id
@@ -617,6 +601,15 @@ const goToToday = () => {
   currentDate.value = `${year}-${month}-${day}`
   debugLog('📅 Going to today (or next workday):', currentDate.value)
   updateRoute()
+}
+
+const goToDailyOverview = () => {
+  router.push({
+    name: 'timesheet-daily',
+    query: {
+      date: currentDate.value,
+    },
+  })
 }
 
 const updateRoute = () => {
@@ -688,7 +681,7 @@ function syncGridState() {
     })),
   )
 
-  timeEntries.value = gridData.filter((d) => {
+  const filteredData = gridData.filter((d) => {
     const hasJob = d && !d.isEmptyRow && (d.jobId || d.jobNumber)
     debugLog('🔍 Filtering entry:', {
       jobId: d?.jobId,
@@ -697,7 +690,24 @@ function syncGridState() {
       hasJob,
     })
     return hasJob
-  }) as CostLine[]
+  })
+
+  // Preserve modification flags when syncing
+  const syncedEntries = filteredData.map((gridEntry) => {
+    const existingEntry = timeEntries.value.find(
+      (e: CostLine) =>
+        e.id === gridEntry.id ||
+        (e.jobId === gridEntry.jobId && e.description === gridEntry.description),
+    )
+
+    return {
+      ...gridEntry,
+      isModified: existingEntry?.isModified || gridEntry.isModified || false,
+      isNewRow: existingEntry?.isNewRow || gridEntry.isNewRow || false,
+    } as CostLine
+  })
+
+  timeEntries.value = syncedEntries
 
   debugLog('✅ Synced grid state with timeEntries:', timeEntries.value.length, 'entries')
   debugLog(
@@ -713,31 +723,36 @@ function syncGridState() {
   )
 }
 
-interface TimesheetEntryWithMeta {
-  id?: number
-  tempId?: string
-  jobId: string
-  jobNumber?: string
-  description: string
-  hours: number
-  wageRate: number
-  chargeOutRate: number
-  billable: boolean
-  rateMultiplier: number
-  client?: string
-  jobName?: string
-  bill: number
-  cost: number
-  _isSaving?: boolean
-  isNewRow?: boolean
-  isModified?: boolean
-}
-
 async function handleSaveEntry(entry: TimesheetEntryWithMeta): Promise<void> {
   const hasJob = entry.jobId || entry.jobNumber
   const hasDescription = entry.description && entry.description.trim().length > 0
   const hasHours = entry.hours > 0
+
+  debugLog('🔍 VALIDATION CHECK:', {
+    entryId: entry.id,
+    jobId: entry.jobId,
+    jobNumber: entry.jobNumber,
+    hasJob,
+    description: entry.description,
+    hasDescription,
+    hours: entry.hours,
+    hasHours,
+    validationPassed: hasJob && hasDescription && hasHours,
+  })
+
   if (!hasJob || !hasDescription || !hasHours) {
+    debugLog('❌ VALIDATION FAILED - Entry not saved:', {
+      hasJob,
+      hasDescription,
+      hasHours,
+      entry: {
+        id: entry.id,
+        jobId: entry.jobId,
+        jobNumber: entry.jobNumber,
+        description: entry.description,
+        hours: entry.hours,
+      },
+    })
     return
   }
 
@@ -756,13 +771,14 @@ async function handleSaveEntry(entry: TimesheetEntryWithMeta): Promise<void> {
 
     let targetJobId = entry.jobId
     if (!targetJobId && entry.jobNumber) {
-      const jobByNumber = jobsList.value.find((j: Job) => j.jobNumber === entry.jobNumber)
+      const jobNumber = parseInt(entry.jobNumber, 10)
+      const jobByNumber = timesheetStore.jobs.find((j: Job) => j.job_number === jobNumber)
       if (jobByNumber) {
         targetJobId = jobByNumber.id
         entry.jobId = targetJobId
-        entry.client = jobByNumber.clientName || ''
-        entry.jobName = jobByNumber.jobName || ''
-        entry.chargeOutRate = jobByNumber.chargeOutRate || 0
+        entry.client = jobByNumber.client_name || ''
+        entry.jobName = jobByNumber.name || ''
+        entry.chargeOutRate = parseFloat(jobByNumber.charge_out_rate) || 0
       }
     }
 
@@ -785,7 +801,7 @@ async function handleSaveEntry(entry: TimesheetEntryWithMeta): Promise<void> {
     if (entry.id && typeof entry.id === 'number') {
       savedLine = await costlineService.updateCostLine(entry.id, costLinePayload)
     } else {
-      const job = jobsList.value.find((j: Job) => j.id === targetJobId)
+      const job = timesheetStore.jobs.find((j: Job) => j.id === targetJobId)
       if (!job) throw new Error('Job not found')
       savedLine = await costlineService.createCostLine(job.id, 'actual', costLinePayload)
       entry.id = savedLine.id
@@ -860,7 +876,12 @@ function onFirstDataRendered() {
 const addNewEntry = () => {
   debugLog('➕ Adding new entry for staff:', selectedStaffId.value)
 
+  // Use the composable's addNewRow function which properly handles ag-Grid
+  addNewRow(selectedStaffId.value, currentDate.value)
+
   hasUnsavedChanges.value = true
+
+  debugLog('✅ Added new entry via composable')
 }
 
 const saveChanges = async () => {
@@ -998,28 +1019,7 @@ const loadTimesheetData = async () => {
     debugLog('📄 Cost lines from API:', response.cost_lines)
     debugLog('📊 Number of cost lines:', response.cost_lines?.length || 0)
 
-    interface BackendCostLine {
-      id: number
-      kind: 'time' | 'material' | 'adjust'
-      desc: string
-      quantity: string
-      unit_cost: string
-      unit_rev: string
-      total_cost: number
-      total_rev: number
-      meta: {
-        is_billable?: boolean
-        rate_multiplier?: number
-        [key: string]: unknown
-      }
-      job_id?: string
-      job_number?: string
-      client_name?: string
-      job_name?: string
-      charge_out_rate?: number
-    }
-
-    timeEntries.value = response.cost_lines.map((line: BackendCostLine) => ({
+    timeEntries.value = response.cost_lines.map((line: TimesheetCostLine) => ({
       id: line.id,
       jobId: line.job_id || '',
       jobNumber: line.job_number || '',
@@ -1031,13 +1031,12 @@ const loadTimesheetData = async () => {
       rate: getRateTypeFromMultiplier(
         typeof line.meta?.rate_multiplier === 'number' ? line.meta.rate_multiplier : 1.0,
       ),
-      wage: line.total_cost,
+      wage: line.wage_rate || parseFloat(line.unit_cost), // Wage per hour (staff cost)
       bill: line.total_rev,
       staffId: selectedStaffId.value,
       date: currentDate.value,
-      wageRate: parseFloat(line.unit_cost),
-      chargeOutRate:
-        typeof line.charge_out_rate === 'number' ? line.charge_out_rate : parseFloat(line.unit_rev),
+      wageRate: line.wage_rate || parseFloat(line.unit_cost),
+      chargeOutRate: parseFloat(line.charge_out_rate),
       rateMultiplier:
         typeof line.meta?.rate_multiplier === 'number' ? line.meta.rate_multiplier : 1.0,
       isNewRow: false,
@@ -1112,55 +1111,33 @@ onMounted(async () => {
     await timesheetStore.initialize()
     await timesheetStore.loadStaff()
     await timesheetStore.loadJobs()
-
-    companyDefaults.value = await CompanyDefaultsService.getDefaults()
-
-    staffList.value = timesheetStore.staff
-    jobsList.value = timesheetStore.jobs
-
-    const convertedJobs = timesheetStore.jobs.map((job: Job) => ({
-      id: job.id,
-      job_number: job.jobNumber || job.number || 'N/A',
-      name: job.jobName || job.name || 'Unnamed Job',
-      client_name: job.clientName || 'No Client',
-      charge_out_rate: job.chargeOutRate || 0,
-      status: job.status || 'active',
-      job_display_name:
-        job.displayName ||
-        `${job.jobNumber || job.number || 'N/A'} - ${job.jobName || job.name || 'Unnamed Job'}`,
-    }))
-
-    window.timesheetJobs = convertedJobs
+    await companyDefaultsStore.loadCompanyDefaults()
 
     let validStaffId = selectedStaffId.value
 
     if (
-      (!validStaffId || !staffList.value.find((s: Staff) => s.id === validStaffId)) &&
-      staffList.value.length > 0
+      (!validStaffId || !timesheetStore.staff.find((s: Staff) => s.id === validStaffId)) &&
+      timesheetStore.staff.length > 0
     ) {
-      validStaffId = staffList.value[0].id
+      validStaffId = timesheetStore.staff[0].id
       debugLog('📋 No valid staff from URL, using first available:', validStaffId)
-    } else if (validStaffId && staffList.value.find((s: Staff) => s.id === validStaffId)) {
+    } else if (validStaffId && timesheetStore.staff.find((s: Staff) => s.id === validStaffId)) {
       debugLog('👤 Using staff from URL parameters:', validStaffId)
     }
 
     selectedStaffId.value = validStaffId
 
-    const currentStaffData = staffList.value.find((s: Staff) => s.id === validStaffId)
-    window.currentStaff = currentStaffData
+    const currentStaffData = timesheetStore.staff.find((s: Staff) => s.id === validStaffId)
 
-    window.companyDefaults = companyDefaults.value
-
-    debugLog('📋 Available staff:', staffList.value.length)
-    debugLog('💼 Available jobs:', jobsList.value.length)
-    debugLog('🔧 Converted jobs for editor:', convertedJobs.length)
+    debugLog('📋 Available staff:', timesheetStore.staff.length)
+    debugLog('💼 Available jobs:', timesheetStore.jobs.length)
     debugLog(
       '👤 Current staff for calculations:',
       currentStaffData?.name,
       'wage rate:',
       currentStaffData?.wageRate,
     )
-    debugLog('💰 Company defaults for calculations:', companyDefaults.value)
+    debugLog('💰 Company defaults for calculations:', companyDefaultsStore.companyDefaults)
 
     updateRoute()
 
@@ -1231,7 +1208,7 @@ watch(
     }
 
     if (newQuery.staffId && newQuery.staffId !== selectedStaffId.value) {
-      const staffExists = staffList.value.find((s: Staff) => s.id === newQuery.staffId)
+      const staffExists = timesheetStore.staff.find((s: Staff) => s.id === newQuery.staffId)
       if (staffExists) {
         debugLog('👤 Updating staff from URL:', newQuery.staffId)
         selectedStaffId.value = newQuery.staffId as string
@@ -1252,14 +1229,6 @@ watch(
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
-
-declare global {
-  interface Window {
-    timesheetJobs?: unknown
-    currentStaff?: unknown
-    companyDefaults: CompanyDefaults | null
-  }
-}
 </script>
 
 <style scoped>

@@ -29,7 +29,12 @@
           </div>
 
           <div>
-            <ClientDropdown id="client" label="Client" v-model="localFilters.client_name" />
+            <ClientLookup
+              id="client"
+              label="Client"
+              v-model="localFilters.client_name"
+              placeholder="Search for a client..."
+            />
           </div>
 
           <div>
@@ -95,6 +100,20 @@
         </div>
       </div>
 
+      <div class="flex flex-col items-center justify-center">
+        <div class="w-full max-w-xs">
+          <label class="block text-sm font-medium text-gray-700 mb-1 text-center"
+            >Xero Invoice (Number or ID)</label
+          >
+          <input
+            v-model="localFilters.xero_invoice_params"
+            type="text"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            placeholder="Xero Invoice"
+          />
+        </div>
+      </div>
+
       <DialogFooter>
         <button
           type="button"
@@ -119,7 +138,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import ClientDropdown from '@/components/ClientDropdown.vue'
+import ClientLookup from '@/components/ClientLookup.vue'
 import StaffDropdown from '@/components/StaffDropdown.vue'
 import StatusMultiSelect from '@/components/StatusMultiSelect.vue'
 import {
@@ -130,19 +149,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { AdvancedFiltersSchema } from '@/api/local/schemas'
+import { z } from 'zod'
 
-interface AdvancedFilters {
-  job_number: string
-  name: string
-  description: string
-  client_name: string
-  contact_person: string
-  created_by: string
-  status: string[]
-  created_after: string
-  created_before: string
-  paid: string
-}
+type AdvancedFilters = z.infer<typeof AdvancedFiltersSchema>
 
 interface Props {
   isOpen: boolean
@@ -187,6 +197,7 @@ const clearFilters = () => {
     created_after: '',
     created_before: '',
     paid: '',
+    xero_invoice_params: '',
   }
 
   emit('clear-filters')

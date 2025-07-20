@@ -5,10 +5,12 @@
       <select
         :id="id"
         v-model="selectedValue"
+        :disabled="isLoading"
         class="w-full p-2 border border-gray-200 rounded-md appearance-none bg-white text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors"
         @change="handleChange"
       >
-        <option value="">{{ placeholder }}</option>
+        <option v-if="isLoading" value="">Loading clients...</option>
+        <option v-else value="">{{ placeholder }}</option>
         <option
           v-for="client in clientOptions"
           :key="client.id || client.name"
@@ -17,7 +19,10 @@
           {{ client.name }}
         </option>
       </select>
-      <div class="absolute top-1/2 right-2 transform -translate-y-1/2 pointer-events-none">
+      <div v-if="isLoading" class="absolute top-1/2 right-8 transform -translate-y-1/2">
+        <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+      </div>
+      <div v-else class="absolute top-1/2 right-2 transform -translate-y-1/2 pointer-events-none">
         <ChevronDown class="h-4 w-4 text-gray-400" />
       </div>
     </div>
@@ -25,11 +30,13 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
-
 import { ref, onMounted, watch } from 'vue'
 import { ChevronDown } from 'lucide-vue-next'
-import { clientService, type Client } from '@/services/clientService'
+import { api, schemas } from '@/api/generated/api'
+import { z } from 'zod'
+
+// Use generated types from Zodios API
+type Client = z.infer<typeof schemas.Client>
 
 interface Props {
   id: string
@@ -57,11 +64,12 @@ const loadClientOptions = async (): Promise<void> => {
   try {
     isLoading.value = true
     error.value = null
-    const data = await clientService.getAllClients()
+    // Use Zodios API to get all clients
+    const data = await api.clients_all_retrieve()
     clientOptions.value = data
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load client options'
-    debugLog('Error loading client options:', err)
+    console.error('Error loading client options:', err)
   } finally {
     isLoading.value = false
   }

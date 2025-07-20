@@ -5,8 +5,11 @@
         <Archive class="w-7 h-7 text-indigo-500" />
         Archive Completed Jobs
       </h1>
-      <div v-if="loading" class="flex-1 flex items-center justify-center text-2xl text-slate-400">
-        Loading…
+      <div v-if="loading" class="flex-1 flex items-center justify-center">
+        <div class="flex items-center space-x-2 text-lg text-gray-600">
+          <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+          <span>Completed jobs are still loading, please wait</span>
+        </div>
       </div>
       <div v-else class="flex flex-row gap-8 items-start">
         <div class="flex-1 min-w-[450px] max-w-full">
@@ -59,10 +62,11 @@ import Button from '@/components/ui/button/Button.vue'
 import { Archive, ArrowRight, Save } from 'lucide-vue-next'
 import { jobColumns as columns } from './jobColumns'
 import JobTable from './JobTable.vue'
-import axios from 'axios'
 import { toast } from 'vue-sonner'
+import { api } from '../api/generated/api'
 
-interface Job {
+// Create a local Job type for archive functionality
+type JobArchive = {
   id: string
   job_number: number
   name: string
@@ -70,6 +74,8 @@ interface Job {
   updated_at: string
   job_status?: string
 }
+
+type Job = JobArchive
 
 const jobs = ref<Job[]>([])
 const toArchive = ref<Job[]>([])
@@ -86,8 +92,8 @@ async function fetchJobs() {
   loading.value = true
   error.value = ''
   try {
-    const res = await axios.get('/job/api/job/completed/', { withCredentials: true })
-    jobs.value = res.data.results
+    const response = await api.job_api_job_completed_list()
+    jobs.value = response.results || []
     selectedLeft.value = []
     toArchive.value = []
     selectedRight.value = []
@@ -123,25 +129,23 @@ async function saveArchive() {
   archiving.value = true
   error.value = ''
   message.value = ''
-  const toastId = toast.loading('Arquivando jobs...')
+  const toastId = toast.info('Archiving jobs...')
   try {
-    const res = await axios.post(
-      '/job/api/job/completed/archive',
-      { ids: toArchive.value.map((j) => j.id) },
-      { withCredentials: true },
-    )
+    const response = await api.job_api_job_completed_archive_create({
+      ids: toArchive.value.map((j) => j.id),
+    })
     toast.dismiss(toastId)
-    if (res.data.success) {
-      toast.success(res.data.message || 'Jobs arquivados com sucesso.')
-      message.value = res.data.message || 'Jobs archived successfully.'
+    if (response.success) {
+      toast.success(response.message || 'Jobs archived successfully.')
+      message.value = response.message || 'Jobs archived successfully.'
       fetchJobs()
     } else {
-      toast.error(res.data.error || 'Alguns jobs não puderam ser arquivados.')
-      error.value = res.data.error || 'Some jobs could not be archived.'
+      toast.error(response.error || "Some jobs couldn't be archived.")
+      error.value = response.error || "Some jobs couldn't be archived."
     }
   } catch (e) {
     toast.dismiss(toastId)
-    toast.error((e as Error)?.message || 'Erro ao arquivar jobs.')
+    toast.error((e as Error)?.message || 'Error archiving jobs.')
     error.value = (e as Error)?.message || 'Failed to archive jobs.'
   }
   archiving.value = false

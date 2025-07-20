@@ -4,16 +4,16 @@ on:
   push:
     branches:
       - main
-      - develop
   pull_request:
     branches:
       - main
-      - develop
 
 jobs:
   deploy:
     name: Deploy Vue.js to EC2
     runs-on: ubuntu-latest
+    # Only run if the required secrets are available
+    if: ${{ secrets.SSH_PRIVATE_KEY != '' && secrets.AWS_HOST != '' && secrets.AWS_USER != '' }}
 
     steps:
       # Code Checkout
@@ -43,7 +43,7 @@ jobs:
             else
               git switch -c $BRANCH_NAME
             fi
-            git pull -f flores $BRANCH_NAME
+            git pull -f origin $BRANCH_NAME
 
             sudo systemctl restart vue
           EOF

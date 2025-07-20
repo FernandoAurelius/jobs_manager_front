@@ -11,6 +11,10 @@ export const statusNameMap: Record<string, string> = {
   completed: 'Completed',
   rejected: 'Rejected',
   archived: 'Archived',
+  draft: 'Draft',
+  unusual: 'Unusual',
+  approved: 'Approved',
+  awaiting_approval: 'Awaiting Approval',
 }
 
 export const statusColorMap: Record<string, string> = {
@@ -34,4 +38,6 @@ export const statusColorMap: Record<string, string> = {
   complete: 'text-emerald-700',
   cancelled: 'text-red-700',
   draft: 'text-gray-500',
+  unusual: 'text-purple-600',
+  approved: 'text-green-600',
 }

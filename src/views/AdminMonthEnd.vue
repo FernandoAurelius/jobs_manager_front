@@ -127,8 +127,18 @@
                     </svg>
                   </TableCell>
                 </TableRow>
-                <TableRow v-if="jobs.length === 0">
+                <TableRow v-if="jobs.length === 0 && !isLoading">
                   <TableCell colspan="6" class="text-center py-4">No jobs</TableCell>
+                </TableRow>
+                <TableRow v-if="jobs.length === 0 && isLoading">
+                  <TableCell colspan="6" class="text-center py-4">
+                    <div class="flex items-center justify-center gap-2">
+                      <div
+                        class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"
+                      ></div>
+                      Month-end jobs are still loading, please wait
+                    </div>
+                  </TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -194,39 +204,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { fetchMonthEnd, runMonthEnd, MonthEndJob, StockJob } from '@/composables/useMonthEnd'
+import { fetchMonthEnd, runMonthEnd } from '@/composables/useMonthEnd'
+import type { MonthEndJob, MonthEndStockJob } from '@/api/generated/api'
 import { toast } from 'vue-sonner'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import MonthEndSummary from '@/components/admin/MonthEndSummary.vue'
-
-interface MonthEndJobHistory {
-  date: string
-  total_hours: number
-  total_dollars: number
-}
-
-interface MonthEndJob {
-  job_id: string
-  job_number: number
-  job_name: string
-  client_name: string
-  history: MonthEndJobHistory[]
-  total_hours: number
-  total_dollars: number
-}
-
-interface StockJobHistory {
-  date: string
-  material_line_count: number
-  material_cost: number
-}
-
-interface StockJob {
-  job_id: string
-  job_number: number
-  job_name: string
-  history: StockJobHistory[]
-}
 
 interface MonthTab {
   key: string
@@ -238,16 +220,9 @@ const activeMonthTab = ref<string>('')
 const selectedMonth = ref(new Date().toISOString().slice(0, 7))
 const selectedIds = ref<string[]>([])
 const loading = ref(false)
-const progress = ref(0)
-const showDialog = ref(false)
-const customMonthLoaded = ref(false)
-const customMonthData = ref<{
-  jobs: MonthEndJob[]
-  stockSummary: { material_line_count: number; material_cost: number }
-} | null>(null)
-
 const jobs = ref<MonthEndJob[]>([])
-const stockJob = ref<StockJob | null>(null)
+const stockJob = ref<MonthEndStockJob | null>(null)
+const isLoading = computed(() => loading.value)
 const totalHours = computed(() => jobs.value.reduce((a, j) => a + j.total_hours, 0))
 const totalDollars = computed(() => jobs.value.reduce((a, j) => a + j.total_dollars, 0))
 const allSelected = computed(
@@ -290,9 +265,9 @@ function jobNumber(id: string) {
 
 async function fetchMonthEndData() {
   loading.value = true
-  toast.loading('Loading Month-End data...', { id: 'month-end-loading' })
+  toast.info('Loading Month-End data...', { id: 'month-end-loading' })
   try {
-    const data = await fetchMonthEnd(selectedMonth.value || new Date().getMonth())
+    const data = await fetchMonthEnd()
     jobs.value = data.jobs
     stockJob.value = data.stockJob
     selectedIds.value = []
@@ -331,8 +306,8 @@ const monthData = ref<
 function loadMonthData(month: MonthTab) {
   if (monthData.value[month.key]) return
   loading.value = true
-  toast.loading(`Loading data for ${month.label}...`, { id: `month-end-${month.key}` })
-  fetchMonthEnd(month.key)
+  toast.info(`Loading data for ${month.label}...`, { id: `month-end-${month.key}` })
+  fetchMonthEnd()
     .then((data) => {
       monthData.value[month.key] = {
         jobs: data.jobs,
@@ -359,8 +334,8 @@ function loadMonthData(month: MonthTab) {
 
 function loadCustomMonth() {
   loading.value = true
-  toast.loading('Loading Month-End data...', { id: 'month-end-custom' })
-  fetchMonthEnd(selectedMonth.value)
+  toast.info('Loading Month-End data...', { id: 'month-end-custom' })
+  fetchMonthEnd()
     .then((data) => {
       customMonthData.value = {
         jobs: data.jobs,

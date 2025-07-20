@@ -1,13 +1,28 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { JobService } from '@/services/job.service'
-import { useJobsStore } from '@/stores/jobs'
-import { KanbanCategorizationService } from '@/services/kanban-categorization.service'
-import type { Job, StatusChoice, AdvancedFilters, Staff } from '@/types'
-import { debugLog } from '@/utils/debug'
+import { jobService } from '../services/job.service'
+import { useJobsStore } from '../stores/jobs'
+import { KanbanCategorizationService } from '../services/kanban-categorization.service'
+import { schemas } from '../api/generated/api'
+import type { StatusChoice, AdvancedFilters } from '../api/local/schemas'
+import { debugLog } from '../utils/debug'
+import type { z } from 'zod'
+
+// Type aliases for better readability
+type KanbanJob = z.infer<typeof schemas.KanbanJob>
+type KanbanJobPerson = z.infer<typeof schemas.KanbanJobPerson>
+type FetchAllJobsResponse = z.infer<typeof schemas.FetchAllJobsResponse>
+type FetchStatusValuesResponse = z.infer<typeof schemas.FetchStatusValuesResponse>
+type AdvancedSearchResponse = z.infer<typeof schemas.AdvancedSearchResponse>
+
+// Interface for jobs that can be used with KanbanCategorizationService
+interface JobWithStatus {
+  status?: string
+  status_key?: string
+}
 
 export function useKanban(onJobsLoaded?: () => void) {
-  const jobService = JobService.getInstance()
+  // jobService is already imported directly
   const router = useRouter()
   const jobsStore = useJobsStore()
 
@@ -33,6 +48,7 @@ export function useKanban(onJobsLoaded?: () => void) {
     created_after: '',
     created_before: '',
     paid: '',
+    xero_invoice_params: '',
   })
 
   const jobs = computed(() =>
@@ -41,15 +57,15 @@ export function useKanban(onJobsLoaded?: () => void) {
   const archivedJobs = computed(() =>
     jobsStore.allKanbanJobs.filter((job) => job.status_key === 'archived'),
   )
-  const filteredJobs = ref<Job[]>([])
+  const filteredJobs = ref<KanbanJob[]>([])
   const totalArchivedJobs = computed(() => archivedJobs.value.length)
 
-  const jobMatchesStaffFilters = (job: Job): boolean => {
+  const jobMatchesStaffFilters = (job: KanbanJob): boolean => {
     if (activeStaffFilters.value.length === 0) {
       return true
     }
 
-    const assignedStaffIds = job.people?.map((staff: Staff) => staff.id.toString()) || []
+    const assignedStaffIds = job.people?.map((staff: KanbanJobPerson) => staff.id.toString()) || []
     const isAssignedToActiveStaff = assignedStaffIds.some((staffId: string) =>
       activeStaffFilters.value.includes(staffId),
     )
@@ -62,12 +78,18 @@ export function useKanban(onJobsLoaded?: () => void) {
   }
 
   const getJobsByStatus = computed(() => (columnId: string) => {
-    let jobList: Job[]
+    let jobList: KanbanJob[]
 
     if (columnId === 'archived') {
       jobList = archivedJobs.value
     } else {
-      jobList = KanbanCategorizationService.getJobsForColumn(jobs.value, columnId)
+      // KanbanJob implements JobWithStatus interface - safe type assertion
+      const jobsWithStatus: (KanbanJob & JobWithStatus)[] = jobs.value
+      const filteredByColumn = KanbanCategorizationService.getJobsForColumn(
+        jobsWithStatus,
+        columnId,
+      )
+      jobList = filteredByColumn as KanbanJob[]
     }
 
     return jobList.filter((job) => jobMatchesStaffFilters(job))
@@ -81,13 +103,15 @@ export function useKanban(onJobsLoaded?: () => void) {
   })
 
   const visibleStatusChoices = computed(() => {
-    return KanbanCategorizationService.getAllColumns()
-      .filter((col) => col.columnId !== 'archived')
-      .map((col) => ({
-        key: col.columnId,
-        label: col.columnTitle,
-        tooltip: `Includes: ${col.subCategories.map((sub) => sub.badgeLabel).join(', ')}`,
-      }))
+    return KanbanCategorizationService.getAllColumns().map((col) => ({
+      key: col.columnId,
+      label: col.columnTitle,
+      tooltip: `Status: ${col.statusKey
+        .replace(/_/g, ' ')
+        .split(' ')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')}`,
+    }))
   })
 
   const loadJobs = async (): Promise<void> => {
@@ -100,12 +124,14 @@ export function useKanban(onJobsLoaded?: () => void) {
       jobsStore.setCurrentContext('kanban')
       jobsStore.setLoadingKanban(true)
 
-      const data = await jobService.getAllJobs()
+      const data: FetchAllJobsResponse = await jobService.getAllJobs()
 
-      const kanbanJobs = [...data.activeJobs, ...data.archivedJobs].map((job) => {
-        let status_key = job.status_key || ''
-        if (status_key === 'draft') status_key = 'quoting'
-        if (status_key === 'awaiting_approval') status_key = 'accepted_quote'
+      // Safely handle the arrays with proper type checking
+      const activeJobs = data.active_jobs || []
+      const archivedJobs = data.archived_jobs || []
+
+      const kanbanJobs = [...activeJobs, ...archivedJobs].map((job: KanbanJob) => {
+        const status_key = job.status_key || ''
         return {
           id: job.id,
           name: job.name,
@@ -128,9 +154,9 @@ export function useKanban(onJobsLoaded?: () => void) {
       jobsStore.setKanbanJobs(kanbanJobs)
 
       debugLog('Jobs loaded and stored:', {
-        activeJobs: data.activeJobs.length,
-        archivedJobs: data.archivedJobs.length,
-        totalArchived: data.totalArchived,
+        activeJobs: activeJobs.length,
+        archivedJobs: archivedJobs.length,
+        totalArchived: data.total_archived,
       })
 
       if (onJobsLoaded) {
@@ -147,12 +173,16 @@ export function useKanban(onJobsLoaded?: () => void) {
 
   const loadStatusChoices = async (): Promise<void> => {
     try {
-      const data = await jobService.getStatusChoices()
+      const data: FetchStatusValuesResponse = await jobService.getStatusChoices()
 
-      statusChoices.value = Object.entries(data.statuses).map(([key, label]) => ({
+      // Safely handle optional properties
+      const statuses = data.statuses || {}
+      const tooltips = data.tooltips || {}
+
+      statusChoices.value = Object.entries(statuses).map(([key, label]) => ({
         key,
         label,
-        tooltip: data.tooltips[key] || '',
+        tooltip: tooltips[key] || '',
       }))
 
       if (!selectedMobileStatus.value && statusChoices.value.length > 0) {
@@ -166,7 +196,11 @@ export function useKanban(onJobsLoaded?: () => void) {
       statusChoices.value = columns.map((col) => ({
         key: col.columnId,
         label: col.columnTitle,
-        tooltip: `Includes: ${col.subCategories.map((sub) => sub.badgeLabel).join(', ')}`,
+        tooltip: `Status: ${col.statusKey
+          .replace(/_/g, ' ')
+          .split(' ')
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ')}`,
       }))
 
       if (!selectedMobileStatus.value) {
@@ -183,16 +217,30 @@ export function useKanban(onJobsLoaded?: () => void) {
       return
     }
 
+    // Client-side search since jobService.searchJobs doesn't take parameters
     const allJobs = [...jobs.value, ...archivedJobs.value]
-    filteredJobs.value = jobService.searchJobs(allJobs, searchQuery.value)
+    const query = searchQuery.value.toLowerCase()
+
+    filteredJobs.value = allJobs.filter((job) => {
+      return (
+        job.name.toLowerCase().includes(query) ||
+        job.job_number.toString().toLowerCase().includes(query) ||
+        job.description?.toLowerCase().includes(query) ||
+        job.client_name?.toLowerCase().includes(query) ||
+        job.contact_person?.toLowerCase().includes(query)
+      )
+    })
+
     showSearchResults.value = true
   }
 
   const handleAdvancedSearch = async (): Promise<void> => {
     try {
       isLoading.value = true
-      const response = await jobService.performAdvancedSearch(advancedFilters.value)
-      filteredJobs.value = response.jobs
+      const response: AdvancedSearchResponse = await jobService.performAdvancedSearch(
+        advancedFilters.value,
+      )
+      filteredJobs.value = response.jobs || []
       showSearchResults.value = true
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to perform advanced search'
@@ -239,7 +287,7 @@ export function useKanban(onJobsLoaded?: () => void) {
     debugLog('Load more jobs for status:', status)
   }
 
-  const viewJob = (job: Job): void => {
+  const viewJob = (job: KanbanJob): void => {
     router.push(`/jobs/${job.id}`)
   }
 

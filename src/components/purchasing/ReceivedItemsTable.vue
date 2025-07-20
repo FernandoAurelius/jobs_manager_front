@@ -1,31 +1,26 @@
 <script setup lang="ts">
 import { computed, h } from 'vue'
-import DataTable from '@/components/DataTable.vue'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import DataTable from '../DataTable.vue'
+import { Button } from '../ui/button'
+import { Checkbox } from '../ui/checkbox'
+import { Input } from '../ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { ArrowUp, ArrowUpToLine } from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
+import { schemas } from '../../api/generated/api'
+import type { z } from 'zod'
 
-export interface Job {
-  id: string
-  name: string
-}
+// Use generated types from API schema
+type Job = z.infer<typeof schemas.Job>
 
-export interface ReceivedLine {
+// Extend DeliveryReceiptLine with additional fields used in the UI
+type ReceivedLine = z.infer<typeof schemas.DeliveryReceiptLine> & {
   id: string
   job_name?: string
   description: string
   quantity: number
   received_quantity: number
   unit_cost: number | null
-  total_received: number
   job_allocation: number
   stock_allocation: number
   allocated_job_id: string
@@ -45,6 +40,7 @@ type Props = {
   selectedLines: string[]
   jobs: Job[]
   stockHoldingJob: Job | null
+  isLoading?: boolean
 }
 
 type Emits = {
@@ -79,8 +75,8 @@ const columns = computed(() => [
     header: () =>
       h(Checkbox, {
         modelValue: allSelected.value,
-        'onUpdate:modelValue': (checked: boolean) => {
-          if (checked) {
+        'onUpdate:modelValue': (checked: boolean | 'indeterminate') => {
+          if (checked === true) {
             emit(
               'update:selected-lines',
               props.lines.map((line) => line.id),
@@ -94,10 +90,11 @@ const columns = computed(() => [
     cell: ({ row }: DataTableRowContext) =>
       h(Checkbox, {
         modelValue: props.selectedLines.includes(row.original.id),
-        'onUpdate:modelValue': (checked: boolean) => {
-          const newSelection = checked
-            ? [...props.selectedLines, row.original.id]
-            : props.selectedLines.filter((id) => id !== row.original.id)
+        'onUpdate:modelValue': (checked: boolean | 'indeterminate') => {
+          const newSelection =
+            checked === true
+              ? [...props.selectedLines, row.original.id]
+              : props.selectedLines.filter((id) => id !== row.original.id)
           emit('update:selected-lines', newSelection)
         },
         class: 'mx-auto',
@@ -151,8 +148,8 @@ const columns = computed(() => [
         Select,
         {
           modelValue: row.original.allocated_job_id,
-          'onUpdate:modelValue': (val: string) => {
-            emit('update:line', row.original.id, 'allocated_job_id', val)
+          'onUpdate:modelValue': (val: string | undefined) => {
+            emit('update:line', row.original.id, 'allocated_job_id', String(val || ''))
           },
         },
         {
@@ -193,16 +190,30 @@ const columns = computed(() => [
       h(Input, {
         type: 'number',
         step: '0.01',
-        min: '0',
         max: row.original.total_received,
         modelValue: row.original.job_allocation,
         class: 'w-24 text-right',
         'onUpdate:modelValue': (val: string | number) => {
           const num = Number(val)
-          if (!Number.isNaN(num) && num >= 0) {
-            emit('update:line', row.original.id, 'job_allocation', num)
-            const stockAllocation = row.original.total_received - num
-            emit('update:line', row.original.id, 'stock_allocation', stockAllocation)
+          if (!Number.isNaN(num)) {
+            if (num < 0) {
+              toast.warning(`Warning: Job allocation cannot be negative. Setting to 0.`)
+              emit('update:line', row.original.id, 'job_allocation', 0)
+              const stockAllocation = parseFloat(row.original.total_received) - 0
+              emit('update:line', row.original.id, 'stock_allocation', stockAllocation)
+            } else {
+              emit('update:line', row.original.id, 'job_allocation', num)
+              const totalReceived =
+                typeof row.original.total_received === 'string'
+                  ? parseFloat(row.original.total_received)
+                  : row.original.total_received
+              const stockAllocation = totalReceived - num
+              emit('update:line', row.original.id, 'stock_allocation', stockAllocation)
+
+              if (stockAllocation < 0) {
+                toast.warning(`Warning: This will put stock allocation to ${stockAllocation}`)
+              }
+            }
           }
         },
       }),
@@ -272,8 +283,17 @@ const columns = computed(() => [
         class="min-h-[200px]"
       />
 
+      <!-- Loading State -->
+      <div v-if="lines.length === 0 && isLoading" class="p-8 text-center text-gray-500">
+        <div class="flex items-center justify-center gap-2 mb-2">
+          <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+          <div class="text-lg font-medium">Loading received items</div>
+        </div>
+        <div class="text-sm">Please wait while we fetch the data</div>
+      </div>
+
       <!-- Empty State -->
-      <div v-if="lines.length === 0" class="p-8 text-center text-gray-500">
+      <div v-if="lines.length === 0 && !isLoading" class="p-8 text-center text-gray-500">
         <div class="text-lg font-medium">No received items</div>
         <div class="text-sm">Move items from pending to configure allocation</div>
       </div>

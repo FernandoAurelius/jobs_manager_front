@@ -6,8 +6,15 @@
           Actual Costs
           <span v-if="isLoading" class="ml-2 text-sm text-gray-500">Loading...</span>
         </h2>
-        <div class="text-sm text-gray-500">
-          View only - costs from delivery receipts and timesheets
+        <div class="flex items-center gap-4">
+          <div class="text-sm text-gray-500">
+            View and add actual costs from stock consumption and adjustments
+          </div>
+          <ActualCostDropdown
+            :disabled="isLoading"
+            @add-material="handleAddMaterial"
+            @add-adjustment="handleAddAdjustment"
+          />
         </div>
       </div>
     </div>
@@ -147,8 +154,8 @@
                     <button
                       v-if="
                         line.kind === 'material' &&
-                        line.meta?.source === 'delivery_receipt' &&
-                        line.ext_refs?.purchase_order_id
+                        isDeliveryReceiptMeta(line.meta) &&
+                        isDeliveryReceiptExtRefs(line.ext_refs)
                       "
                       @click="navigateToDeliveryReceipt(line.ext_refs.purchase_order_id)"
                       class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-md text-sm font-medium transition-colors"
@@ -161,15 +168,23 @@
                           d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                         />
                       </svg>
-                      {{ line.meta.po_number || 'Delivery Receipt' }}
+                      {{
+                        isDeliveryReceiptMeta(line.meta)
+                          ? line.meta.po_number || 'Delivery Receipt'
+                          : 'Delivery Receipt'
+                      }}
                     </button>
 
                     <!-- Time from Timesheet -->
                     <button
-                      v-else-if="line.kind === 'time' && line.meta?.staff_id"
+                      v-else-if="line.kind === 'time' && isTimesheetMeta(line.meta)"
                       @click="navigateToTimesheet(line.meta.staff_id, line.meta.date)"
                       class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-md text-sm font-medium transition-colors"
-                      :title="`Staff: ${staffMap[line.meta.staff_id]?.name || 'Unknown'} - Date: ${line.meta.date || 'Unknown'}`"
+                      :title="
+                        isTimesheetMeta(line.meta)
+                          ? `Staff: ${staffMap[line.meta.staff_id]?.display_name || 'Unknown'} - Date: ${line.meta.date || 'Unknown'}`
+                          : 'Timesheet Entry'
+                      "
                     >
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
@@ -179,7 +194,11 @@
                           d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                         />
                       </svg>
-                      {{ staffMap[line.meta.staff_id]?.name || 'Timesheet' }}
+                      {{
+                        isTimesheetMeta(line.meta)
+                          ? staffMap[line.meta.staff_id]?.display_name || 'Timesheet'
+                          : 'Timesheet'
+                      }}
                     </button>
 
                     <!-- Adjustment Entry -->
@@ -218,6 +237,22 @@
         />
       </div>
     </div>
+
+    <!-- Stock Consumption Modal -->
+    <StockConsumptionModal
+      v-if="showStockModal"
+      @close="closeStockModal"
+      @submit="submitStockConsumption"
+    />
+
+    <!-- Adjustment Modal -->
+    <CostLineAdjustmentModal
+      v-if="showAdjustmentModal"
+      :initial="null"
+      mode="create"
+      @close="closeAdjustmentModal"
+      @submit="submitAdjustment"
+    />
   </div>
 </template>
 
@@ -226,37 +261,74 @@ import { debugLog } from '@/utils/debug'
 
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { toast } from 'vue-sonner'
 import CostSetSummaryCard from '@/components/shared/CostSetSummaryCard.vue'
 import { fetchCostSet } from '@/services/costing.service'
-import type { CostLine, CostSet } from '@/types/costing.types'
-import api from '@/plugins/axios'
+import { costlineService } from '@/services/costline.service'
+import { schemas, api } from '../../api/generated/api'
+import { z } from 'zod'
+import ActualCostDropdown from './ActualCostDropdown.vue'
+import StockConsumptionModal from './StockConsumptionModal.vue'
+import CostLineAdjustmentModal from './CostLineAdjustmentModal.vue'
 
-interface Props {
+type CostLine = z.infer<typeof schemas.CostLine>
+type CostSet = z.infer<typeof schemas.CostSet>
+type KanbanStaff = z.infer<typeof schemas.KanbanStaff>
+
+// Type guard functions to safely access meta and ext_refs
+function isDeliveryReceiptMeta(meta: unknown): meta is { source: string; po_number?: string } {
+  return (
+    typeof meta === 'object' &&
+    meta !== null &&
+    'source' in meta &&
+    typeof (meta as Record<string, unknown>).source === 'string' &&
+    (meta as Record<string, unknown>).source === 'delivery_receipt'
+  )
+}
+
+function isTimesheetMeta(meta: unknown): meta is { staff_id: string; date?: string } {
+  return (
+    typeof meta === 'object' &&
+    meta !== null &&
+    'staff_id' in meta &&
+    typeof (meta as Record<string, unknown>).staff_id === 'string'
+  )
+}
+
+function isDeliveryReceiptExtRefs(extRefs: unknown): extRefs is { purchase_order_id: string } {
+  return (
+    typeof extRefs === 'object' &&
+    extRefs !== null &&
+    'purchase_order_id' in extRefs &&
+    typeof (extRefs as Record<string, unknown>).purchase_order_id === 'string'
+  )
+}
+
+const props = defineProps<{
   jobId: string
   actualSummaryFromBackend?: { cost: number; rev: number; hours: number; created?: string }
-}
+}>()
 
-interface Staff {
-  id: string
-  name: string
-  email?: string
-}
+const emit = defineEmits<{
+  'cost-line-changed': []
+}>()
 
-const props = defineProps<Props>()
 const router = useRouter()
 
 const costLines = ref<CostLine[]>([])
-const staffMap = ref<Record<string, Staff>>({})
+const staffMap = ref<Record<string, KanbanStaff>>({})
 const isLoading = ref(false)
 const revision = ref(0)
+const showStockModal = ref(false)
+const showAdjustmentModal = ref(false)
 
-function formatCurrency(value: number | string): string {
-  const num = typeof value === 'string' ? parseFloat(value) : value
+function formatCurrency(value: number | string | undefined): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value || 0
   return num.toFixed(2)
 }
 
-function formatNumber(value: number | string): string {
-  const num = typeof value === 'string' ? parseFloat(value) : value
+function formatNumber(value: number | string | undefined): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value || 0
   return num.toFixed(3)
 }
 
@@ -288,14 +360,13 @@ function getKindClasses(kind: string): string {
 
 async function loadStaff() {
   try {
-    const response = await api.get('/api/staff/')
-    const staff: Staff[] = response.data || []
+    const staff: KanbanStaff[] = await api.accounts_api_staff_all_list()
     staffMap.value = staff.reduce(
-      (acc, s) => {
+      (acc: Record<string, KanbanStaff>, s: KanbanStaff) => {
         acc[s.id] = s
         return acc
       },
-      {} as Record<string, Staff>,
+      {} as Record<string, KanbanStaff>,
     )
   } catch (error) {
     debugLog('Failed to load staff data:', error)
@@ -307,12 +378,7 @@ async function loadActualCosts() {
   try {
     const costSet: CostSet = await fetchCostSet(props.jobId, 'actual')
 
-    costLines.value = costSet.cost_lines.map((line) => ({
-      ...line,
-      quantity: typeof line.quantity === 'string' ? Number(line.quantity) : line.quantity,
-      unit_cost: typeof line.unit_cost === 'string' ? Number(line.unit_cost) : line.unit_cost,
-      unit_rev: typeof line.unit_rev === 'string' ? Number(line.unit_rev) : line.unit_rev,
-    }))
+    costLines.value = costSet.cost_lines
 
     revision.value = costSet.rev || 0
   } catch (error) {
@@ -336,9 +402,9 @@ const actualSummary = computed(() => {
   let hours = 0
 
   for (const line of costLines.value) {
-    const quantity = typeof line.quantity === 'string' ? Number(line.quantity) : line.quantity
-    const unitCost = typeof line.unit_cost === 'string' ? Number(line.unit_cost) : line.unit_cost
-    const unitRev = typeof line.unit_rev === 'string' ? Number(line.unit_rev) : line.unit_rev
+    const quantity = Number(line.quantity || 0)
+    const unitCost = Number(line.unit_cost || 0)
+    const unitRev = Number(line.unit_rev || 0)
 
     cost += quantity * unitCost
     rev += quantity * unitRev
@@ -378,5 +444,106 @@ function navigateToTimesheet(staffId: string, date?: string) {
   }
 
   router.push(routeParams)
+}
+
+// Modal handlers
+function handleAddMaterial() {
+  showStockModal.value = true
+}
+
+function handleAddAdjustment() {
+  showAdjustmentModal.value = true
+}
+
+function closeStockModal() {
+  showStockModal.value = false
+}
+
+function closeAdjustmentModal() {
+  showAdjustmentModal.value = false
+}
+
+async function submitStockConsumption(payload: {
+  stockItem: { id: number; description: string }
+  quantity: number
+  unit_cost: number
+  unit_rev: number
+}) {
+  isLoading.value = true
+  toast.info('Consuming stock and adding cost line...', { id: 'add-stock' })
+  try {
+    // First, consume the stock using the stock consumption endpoint
+    const consumeRequest = {
+      job_id: props.jobId,
+      quantity: payload.quantity.toString(),
+    }
+
+    await api.purchasing_rest_stock_consume_create(consumeRequest, {
+      params: { stock_id: payload.stockItem.id },
+    })
+
+    // Then create the cost line
+    const createPayload = {
+      kind: 'material' as const,
+      desc: `${payload.stockItem.description} (Stock)`,
+      quantity: payload.quantity.toString(),
+      unit_cost: payload.unit_cost.toString(),
+      unit_rev: payload.unit_rev.toString(),
+      ext_refs: {
+        stock_item_id: payload.stockItem.id,
+        source: 'stock_consumption',
+      },
+      meta: {
+        source: 'stock_consumption',
+        stock_item_id: payload.stockItem.id,
+        stock_description: payload.stockItem.description,
+      },
+    }
+
+    const created = await costlineService.createCostLine(props.jobId, 'actual', createPayload)
+    costLines.value = [...costLines.value, created]
+    toast.success('Stock consumption added!')
+    emit('cost-line-changed')
+    closeStockModal()
+  } catch (error) {
+    toast.error('Failed to add stock consumption.')
+    debugLog('Failed to add stock consumption:', error)
+  } finally {
+    isLoading.value = false
+    toast.dismiss('add-stock')
+  }
+}
+
+async function submitAdjustment(payload: CostLine) {
+  if (!payload || payload.kind !== 'adjust') return
+  isLoading.value = true
+  toast.info('Adding adjustment...', { id: 'add-adjustment' })
+  try {
+    const createPayload = {
+      kind: 'adjust' as const,
+      desc: payload.desc,
+      quantity: payload.quantity.toString(),
+      unit_cost: payload.unit_cost?.toString() || '0',
+      unit_rev: payload.unit_rev?.toString() || '0',
+      ext_refs: {
+        source: 'manual_adjustment',
+      },
+      meta: {
+        source: 'manual_adjustment',
+      },
+    }
+
+    const created = await costlineService.createCostLine(props.jobId, 'actual', createPayload)
+    costLines.value = [...costLines.value, created]
+    toast.success('Adjustment added!')
+    emit('cost-line-changed')
+    closeAdjustmentModal()
+  } catch (error) {
+    toast.error('Failed to add adjustment.')
+    debugLog('Failed to add adjustment:', error)
+  } finally {
+    isLoading.value = false
+    toast.dismiss('add-adjustment')
+  }
 }
 </script>

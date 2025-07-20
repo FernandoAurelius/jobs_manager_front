@@ -1,10 +1,10 @@
 import { computed } from 'vue'
-import type { Job } from '@/types'
+import { schemas } from '../api/generated/api'
+import type { JobCardStatusConfig } from '../api/local/schemas'
+import type { z } from 'zod'
 
-interface StatusConfig {
-  variant: 'default' | 'secondary' | 'outline'
-  borderClass: string
-}
+// Use KanbanJob for job card display
+type Job = z.infer<typeof schemas.KanbanJob>
 
 export function useJobCard(
   job: Job,
@@ -12,8 +12,8 @@ export function useJobCard(
   emitMovement?: (e: 'job-selected-for-movement', job: Job) => void,
   isMovementModeActive?: boolean,
 ) {
-  const statusConfig = computed((): StatusConfig => {
-    const configs: Record<string, StatusConfig> = {
+  const statusConfig = computed((): JobCardStatusConfig => {
+    const configs: Record<string, JobCardStatusConfig> = {
       pending: {
         variant: 'secondary',
         borderClass: 'border-l-yellow-400',

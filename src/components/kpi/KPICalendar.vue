@@ -35,17 +35,19 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { DayKPI, Thresholds } from '@/services/kpi.service'
+import { schemas } from '@/api/generated/api'
+import { z } from 'zod'
 import KPICalendarDay from './KPICalendarDay.vue'
 
-interface Props {
+type DayKPI = z.infer<typeof schemas.KPIDayData>
+type Thresholds = z.infer<typeof schemas.KPIThresholds>
+
+const props = defineProps<{
   calendarData: Record<string, DayKPI>
   thresholds: Thresholds
   year: number
   month: number
-}
-
-const props = defineProps<Props>()
+}>()
 
 defineEmits<{
   dayClick: [day: DayKPI]

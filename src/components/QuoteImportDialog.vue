@@ -323,19 +323,16 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useQuoteImport } from '@/composables/useQuoteImport'
-import type { QuoteImportResponse } from '@/services/quote-import.service'
+import type { QuoteImportResponse } from '@/api/local/schemas'
 
-interface Props {
+const props = defineProps<{
   jobId: string
-}
+}>()
 
-interface Emits {
+const emit = defineEmits<{
   (e: 'success', result: QuoteImportResponse): void
   (e: 'cancel'): void
-}
-
-const props = defineProps<Props>()
-const emit = defineEmits<Emits>()
+}>()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedFile = ref<File | null>(null)

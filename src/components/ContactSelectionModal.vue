@@ -57,7 +57,8 @@
 
           <div v-else class="text-center py-4 text-gray-500">
             <Users class="w-12 h-12 mx-auto mb-2 text-gray-300" />
-            <p>No contacts found for this client</p>
+            <p>No existing contacts found for this client</p>
+            <p class="text-xs mt-1">You can create a new contact below</p>
           </div>
 
           <div class="border-t pt-4">
@@ -123,6 +124,9 @@
                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span class="ml-2 text-sm text-gray-700">Set as primary contact</span>
+                  <span v-if="contacts.length === 0" class="ml-1 text-xs text-gray-500"
+                    >(Default for first contact)</span
+                  >
                 </label>
               </div>
             </div>
@@ -158,6 +162,8 @@ import { ref, watch } from 'vue'
 import { Users } from 'lucide-vue-next'
 import type { ClientContact } from '@/composables/useClientLookup'
 import type { NewContactData } from '@/composables/useContactManagement'
+import { schemas } from '@/api/generated/api'
+import type { z } from 'zod'
 import {
   Dialog,
   DialogContent,
@@ -165,9 +171,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog'
+} from '../components/ui/dialog'
 
-interface Props {
+// Type aliases for schema-based types (replacing deprecated interface)
+type ClientContact = z.infer<typeof schemas.ClientContactResult>
+type NewContactData = z.infer<typeof schemas.ClientContactCreateRequest>
+
+const props = defineProps<{
   isOpen: boolean
   clientId: string
   clientName: string
@@ -175,9 +185,7 @@ interface Props {
   selectedContact: ClientContact | null
   isLoading: boolean
   newContactForm: NewContactData
-}
-
-const props = defineProps<Props>()
+}>()
 const emit = defineEmits<{
   close: []
   'select-contact': [contact: ClientContact]
@@ -194,6 +202,21 @@ watch(
   (val) => {
     localContactForm.value = { ...val }
   },
+  { deep: true, immediate: true },
+)
+
+// Sync changes back to parent
+watch(
+  localContactForm,
+  (val) => {
+    // Update the parent's form data
+    Object.keys(val).forEach((key) => {
+      if (key in props.newContactForm) {
+        ;(props.newContactForm as Record<string, unknown>)[key] = val[key as keyof typeof val]
+      }
+    })
+  },
+  { deep: true },
 )
 
 const handleSave = () => {

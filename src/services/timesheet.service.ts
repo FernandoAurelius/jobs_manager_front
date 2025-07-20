@@ -1,28 +1,28 @@
-import api from '@/plugins/axios'
-import type { Staff, Job, WeeklyOverviewData } from '@/types/timesheet.types'
-import type { CostLine } from '@/types/costing.types'
+import { api, schemas } from '@/api/generated/api'
 import { debugLog } from '../utils/debug'
+import type { z } from 'zod'
+
+type Staff = z.infer<typeof schemas.ModernStaff>
+type Job = z.infer<typeof schemas.ModernTimesheetJob>
+type WeeklyOverviewData = z.infer<typeof schemas.WeeklyTimesheetData>
+type CostLine = z.infer<typeof schemas.CostLine>
 
 export class TimesheetService {
-  private static readonly BASE_URL = '/timesheets/api'
-  private static readonly MODERN_BASE_URL = '/job/rest/timesheet'
-
   static async getStaff(): Promise<Staff[]> {
     try {
-      const response = await api.get(`${this.BASE_URL}/staff/`)
-      const rawStaff = response.data.staff || []
+      const staff = await api.timesheets_api_staff_retrieve()
 
       // Get company defaults for fallback wage rate
       let defaultWageRate = 32
       try {
-        const defaultsResponse = await api.get('/job/rest/company-defaults/')
-        defaultWageRate = parseFloat(defaultsResponse.data.wage_rate || '32') || 32
+        const defaults = await api.api_company_defaults_retrieve()
+        defaultWageRate = parseFloat(defaults.wage_rate || '32') || 32
       } catch {
         debugLog('Could not fetch company defaults, using fallback wage rate:', defaultWageRate)
       }
 
       // Normalize staff data to ensure consistent field names
-      const normalizedStaff = rawStaff.map(
+      const normalizedStaff = staff.map(
         (staff: {
           id: string
           firstName?: string
@@ -73,11 +73,12 @@ export class TimesheetService {
   // Legacy method - use CostLine queries instead
   static async getTimeEntries(staffId: string, date: string): Promise<CostLine[]> {
     try {
-      // Use modern CostLine-based API
-      const response = await api.get(`${this.MODERN_BASE_URL}/cost-lines/`, {
-        params: { staff_id: staffId, date, kind: 'time' },
+      // Use generated API to get timesheet entries
+      const response = await api.job_rest_timesheet_day_retrieve({
+        staff_id: staffId,
+        date: date,
       })
-      return response.data.cost_lines || response.data.lines || []
+      return response.entries || []
     } catch (error) {
       debugLog('Error fetching cost lines:', error)
       throw error
@@ -86,39 +87,8 @@ export class TimesheetService {
 
   static async getJobs(): Promise<Job[]> {
     try {
-      const response = await api.get(`${this.BASE_URL}/jobs/`)
-      const rawJobs = response.data.jobs || []
-
-      // Normalize job data to ensure consistent field names
-      const normalizedJobs = rawJobs.map(
-        (job: {
-          id: string
-          job_number?: string | number
-          name?: string
-          client_name?: string
-          charge_out_rate?: string | number
-          status?: string
-        }) => ({
-          id: job.id,
-          jobNumber: job.job_number?.toString() || 'N/A',
-          number: job.job_number?.toString() || 'N/A',
-          name: job.name || 'Unnamed Job',
-          jobName: job.name || 'Unnamed Job',
-          clientName: job.client_name || 'No Client',
-          chargeOutRate: parseFloat(String(job.charge_out_rate || '0')) || 0,
-          status: job.status || 'unknown',
-          displayName: `${job.job_number || 'N/A'} - ${job.name || 'Unnamed Job'}`,
-          jobId: job.id,
-        }),
-      )
-
-      debugLog('📋 Jobs normalized for timesheet:', {
-        count: normalizedJobs.length,
-        sample: normalizedJobs[0],
-        keys: normalizedJobs[0] ? Object.keys(normalizedJobs[0]) : [],
-      })
-
-      return normalizedJobs
+      const jobs = await api.timesheets_api_jobs_retrieve()
+      return jobs
     } catch (error) {
       debugLog('Error fetching jobs:', error)
       throw error
@@ -127,10 +97,8 @@ export class TimesheetService {
 
   static async getWeeklyOverview(startDate: string): Promise<WeeklyOverviewData> {
     try {
-      const response = await api.get(`${this.BASE_URL}/weekly-overview/`, {
-        params: { start_date: startDate },
-      })
-      return response.data
+      const response = await api.job_rest_timesheet_weekly_retrieve({ date: startDate })
+      return response
     } catch (error) {
       debugLog('Error fetching weekly overview:', error)
       throw error

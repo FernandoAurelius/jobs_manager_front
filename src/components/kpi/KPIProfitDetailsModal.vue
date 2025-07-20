@@ -148,19 +148,22 @@ import {
   DialogDescription,
   DialogClose,
 } from '@/components/ui/dialog'
-import type { MonthlyTotals, Thresholds, DayKPI } from '@/services/kpi.service'
+import { schemas } from '@/api/generated/api'
+import { z } from 'zod'
 import { kpiService } from '@/services/kpi.service'
 
-interface Props {
+type MonthlyTotals = z.infer<typeof schemas.KPIMonthlyTotals>
+type Thresholds = z.infer<typeof schemas.KPIThresholds>
+type DayKPI = z.infer<typeof schemas.KPIDayData>
+
+const props = defineProps<{
   monthlyData: MonthlyTotals | null
   thresholds: Thresholds | null
   calendarData: Record<string, DayKPI> | null
   year: number
   month: number
   isOpen: boolean
-}
-
-const props = defineProps<Props>()
+}>()
 
 const emit = defineEmits<{
   'update:isOpen': [value: boolean]

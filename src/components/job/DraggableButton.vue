@@ -20,6 +20,7 @@ import { ref, computed, type HTMLAttributes } from 'vue'
 import { cn } from '@/lib/utils'
 
 type ButtonVariant = 'primary' | 'secondary' | 'destructive' | 'outline' | 'ghost'
+
 type ButtonSize = 'sm' | 'md' | 'lg'
 
 interface Props {

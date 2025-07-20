@@ -128,10 +128,10 @@
                 ${{ formatCurrency(line.unit_rev) }}
               </td>
               <td class="px-4 py-3 text-sm text-gray-900 text-right font-medium">
-                ${{ formatCurrency(line.quantity * line.unit_cost) }}
+                ${{ formatCurrency(calculateTotal(line.quantity, line.unit_cost)) }}
               </td>
               <td class="px-4 py-3 text-sm text-gray-900 text-right font-medium">
-                ${{ formatCurrency(line.quantity * line.unit_rev) }}
+                ${{ formatCurrency(calculateTotal(line.quantity, line.unit_rev)) }}
               </td>
               <td v-if="showActions" class="px-4 py-3 text-center">
                 <button
@@ -185,28 +185,22 @@
 
 <script setup lang="ts">
 import { defineEmits, withDefaults } from 'vue'
+import { schemas } from '../../api/generated/api'
+import { z } from 'zod'
 
-interface CostLine {
-  id?: number
-  kind: string
-  desc: string
-  quantity: number
-  unit_cost: number
-  unit_rev: number
-  ext_refs?: unknown
-  meta?: unknown
-}
+type CostLine = z.infer<typeof schemas.CostLine>
 
-interface Props {
-  costLines: CostLine[]
-  isLoading?: boolean
-  showActions?: boolean
-}
-
-withDefaults(defineProps<Props>(), {
-  isLoading: false,
-  showActions: false,
-})
+withDefaults(
+  defineProps<{
+    costLines: CostLine[]
+    isLoading?: boolean
+    showActions?: boolean
+  }>(),
+  {
+    isLoading: false,
+    showActions: false,
+  },
+)
 
 const emit = defineEmits(['edit', 'delete'])
 
@@ -218,18 +212,29 @@ function onDelete(line: CostLine) {
   emit('delete', line)
 }
 
-function formatNumber(value: number): string {
+function formatNumber(value: string | number | undefined): string {
+  const num = typeof value === 'string' ? parseFloat(value) || 0 : value || 0
   return new Intl.NumberFormat('en-NZ', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-  }).format(value)
+  }).format(num)
 }
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: string | number | undefined): string {
+  const num = typeof value === 'string' ? parseFloat(value) || 0 : value || 0
   return new Intl.NumberFormat('en-NZ', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value)
+  }).format(num)
+}
+
+function calculateTotal(
+  quantity: string | number | undefined,
+  price: string | number | undefined,
+): number {
+  const qty = typeof quantity === 'string' ? parseFloat(quantity) || 0 : quantity || 0
+  const prc = typeof price === 'string' ? parseFloat(price) || 0 : price || 0
+  return qty * prc
 }
 
 function getKindDisplayName(kind: string): string {

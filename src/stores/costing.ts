@@ -1,8 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { fetchCostSet } from '@/services/costing.service'
-import type { CostSet, CostLine } from '@/types/costing.types'
+import { api, schemas } from '@/api/generated/api'
 import { debugLog } from '@/utils/debug'
+import type { z } from 'zod'
+
+type CostSet = z.infer<typeof schemas.CostSet>
+type CostLine = z.infer<typeof schemas.CostLine>
 
 function createEmptyGrouping() {
   return {
@@ -51,7 +54,12 @@ export const useCostingStore = defineStore('costing', () => {
     try {
       debugLog(`Loading costing data for job ${jobId}, kind: ${targetKind}`)
 
-      const data = await fetchCostSet(jobId, targetKind)
+      const data = await api.job_rest_jobs_cost_sets_retrieve({
+        params: {
+          id: jobId.toString(),
+          kind: targetKind,
+        },
+      })
       costSet.value = data
 
       currentKind.value = targetKind
@@ -60,19 +68,6 @@ export const useCostingStore = defineStore('costing', () => {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load costing data'
       debugLog(`Error loading costing data for ${targetKind}:`, err)
-
-      if (targetKind !== 'estimate') {
-        debugLog('Trying to fallback to estimate data...')
-        try {
-          const fallbackData = await fetchCostSet(jobId, 'estimate')
-          costSet.value = fallbackData
-          currentKind.value = 'estimate'
-          debugLog('Fallback to estimate successful')
-          error.value = null
-        } catch (fallbackErr) {
-          debugLog('Fallback to estimate also failed:', fallbackErr)
-        }
-      }
 
       if (error.value) {
         throw err
@@ -130,7 +125,7 @@ export const useCostingStore = defineStore('costing', () => {
       return costSet.value.summary.cost
     }
 
-    return sumCostLines((cl) => Number(cl.total_cost) || 0)
+    return sumCostLines((cl) => cl.total_cost || 0)
   })
 
   const totalRevenue = computed(() => {
@@ -144,7 +139,7 @@ export const useCostingStore = defineStore('costing', () => {
       return costSet.value.summary.rev
     }
 
-    return sumCostLines((cl) => Number(cl.total_rev) || 0)
+    return sumCostLines((cl) => cl.total_rev || 0)
   })
 
   const totalHours = computed(() => {

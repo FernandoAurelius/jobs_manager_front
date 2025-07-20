@@ -1,20 +1,18 @@
 <template>
   <AppLayout>
     <div class="flex flex-col min-h-screen">
-      <div
-        class="sticky top-0 bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 backdrop-blur-md border-b border-purple-500/20 p-1"
-      >
-        <div class="px-3 sm:px-4 lg:px-6 py-2 sm:py-3">
-          <div class="space-y-3 lg:space-y-0 py-0.5">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <div class="sticky top-0 bg-white backdrop-blur-md border-b border-gray-200 p-1">
+        <div class="px-3 sm:px-4 lg:px-6 py-1 sm:py-2">
+          <div class="space-y-2 lg:space-y-0 pt-2">
+            <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between">
               <div
-                class="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-center sm:text-left"
+                class="flex flex-col sm:flex-row sm:items-end sm:space-x-4 text-center sm:text-left"
               >
-                <h1 class="text-lg sm:text-xl lg:text-2xl font-bold text-white">
+                <h1 class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
                   Weekly Timesheet Overview
                 </h1>
                 <div
-                  class="flex items-center justify-center sm:justify-start space-x-2 text-white/80 mt-1 sm:mt-0"
+                  class="flex items-center justify-center sm:justify-start space-x-2 text-gray-600 mt-1 sm:mt-0"
                 >
                   <Calendar class="h-4 w-4 sm:h-5 sm:w-5" />
                   <span class="text-xs sm:text-sm">{{ formatDisplayDateRange() }}</span>
@@ -25,23 +23,28 @@
                 class="flex items-center justify-center sm:justify-end space-x-2 sm:space-x-3 mt-2 sm:mt-0"
               >
                 <div class="flex items-center space-x-2">
-                  <Switch
-                    v-model:checked="imsMode"
-                    @update:checked="toggleIMSMode"
-                    class="group inline-flex h-6 w-11 items-center rounded-full bg-gray-200 transition data-[checked]:bg-blue-600"
+                  <button
+                    @click="toggleIMSMode(!imsMode)"
+                    :class="[
+                      'relative inline-flex h-5 w-9 sm:h-6 sm:w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2',
+                      imsMode ? 'bg-gray-600' : 'bg-gray-200',
+                    ]"
                   >
                     <span
-                      class="size-4 translate-x-1 rounded-full bg-white transition group-data-[checked]:translate-x-6"
+                      :class="[
+                        'inline-block h-3 w-3 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform',
+                        imsMode ? 'translate-x-5 sm:translate-x-6' : 'translate-x-1',
+                      ]"
                     ></span>
-                  </Switch>
-                  <Label class="text-white text-xs sm:text-sm font-medium">IMS Export</Label>
+                  </button>
+                  <Label class="text-gray-700 text-xs sm:text-sm font-medium">Payroll View</Label>
                 </div>
 
                 <Button
-                  @click="openJobMetricsModal"
+                  @click="openWeeklyMetricsModal"
                   variant="ghost"
                   size="sm"
-                  class="text-white hover:bg-purple-500/20 text-xs sm:text-sm"
+                  class="text-gray-600 hover:bg-gray-100 text-xs sm:text-sm"
                 >
                   <BarChart3 class="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
                   <span class="hidden sm:inline">Job Metrics</span>
@@ -51,7 +54,7 @@
                   @click="refreshData"
                   variant="ghost"
                   size="sm"
-                  class="text-white hover:bg-purple-500/20 text-xs sm:text-sm"
+                  class="text-gray-600 hover:bg-gray-100 text-xs sm:text-sm"
                   :disabled="loading"
                 >
                   <RefreshCw
@@ -65,7 +68,7 @@
                   @click="goToCurrentWeek"
                   variant="default"
                   size="sm"
-                  class="bg-purple-600 hover:bg-purple-700 text-white border-purple-500 font-medium text-xs sm:text-sm"
+                  class="bg-gray-600 hover:bg-gray-700 text-white border-gray-500 font-medium text-xs sm:text-sm"
                 >
                   <Home class="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
                   <span class="hidden sm:inline">This Week</span>
@@ -78,7 +81,7 @@
                 @click="navigateWeek(-1)"
                 variant="ghost"
                 size="sm"
-                class="text-white hover:bg-purple-500/20 px-2 sm:px-4"
+                class="text-gray-600 hover:bg-gray-100 px-2 sm:px-4"
               >
                 <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" />
                 <span class="hidden sm:inline ml-1">Previous</span>
@@ -88,7 +91,7 @@
                 @click="openWeekPicker"
                 variant="ghost"
                 size="sm"
-                class="text-white hover:bg-purple-500/20 px-3 sm:px-4"
+                class="text-gray-600 hover:bg-gray-100 px-3 sm:px-4"
               >
                 <CalendarDays class="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                 <span class="text-xs sm:text-sm">Change Week</span>
@@ -98,7 +101,7 @@
                 @click="navigateWeek(1)"
                 variant="ghost"
                 size="sm"
-                class="text-white hover:bg-purple-500/20 px-2 sm:px-4"
+                class="text-gray-600 hover:bg-gray-100 px-2 sm:px-4"
               >
                 <span class="hidden sm:inline mr-1">Next</span>
                 <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" />
@@ -109,15 +112,15 @@
       </div>
 
       <div class="flex-1 p-2 sm:p-4 lg:p-1 space-y-3 sm:space-y-4 lg:space-y-6">
-        <div v-if="loading" class="flex items-center justify-center py-8 sm:py-12">
-          <div class="text-center">
+        <!-- Loading Spinner -->
+        <div v-if="loading" class="flex-1 flex items-center justify-center bg-gray-50">
+          <div class="text-center space-y-4 p-8">
             <div
-              class="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-purple-600 mx-auto mb-4"
+              class="h-12 w-12 mx-auto rounded-full border-4 border-gray-300 border-t-gray-600 animate-spin"
             ></div>
-            <p class="text-gray-600 text-sm sm:text-base">Loading weekly timesheet data...</p>
+            <p class="text-gray-600 text-lg font-medium">Loading weekly timesheet data...</p>
           </div>
         </div>
-
         <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6">
           <div class="flex items-start space-x-3">
             <AlertCircle class="h-5 w-5 sm:h-6 sm:w-6 text-red-600 flex-shrink-0 mt-0.5" />
@@ -141,18 +144,18 @@
                 <thead class="bg-gray-50 sticky top-0">
                   <tr>
                     <th
-                      class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      class="px-1 py-1 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
                       Staff Member
                     </th>
                     <th
                       v-for="day in displayDays"
                       :key="day.date"
-                      class="px-1 py-1 text-center text-xs font-medium text-blue-700 uppercase tracking-wider"
+                      class="px-1 py-1 text-center text-xs font-medium text-gray-700 uppercase tracking-wider"
                     >
                       <button
                         @click="goToDailyViewHeader(day.date)"
-                        class="transition text-blue-700 hover:text-white hover:bg-blue-600 px-1 py-1 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs"
+                        class="transition text-gray-700 hover:text-white hover:bg-gray-600 px-1 py-1 rounded focus:outline-none focus:ring-2 focus:ring-gray-400 text-xs"
                         style="min-width: 36px"
                       >
                         <div class="flex flex-col items-center">
@@ -162,14 +165,14 @@
                       </button>
                     </th>
                     <th
-                      class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      class="px-1 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
-                      Total
+                      {{ imsMode ? 'Weekly Total' : 'Total' }}
                     </th>
                     <th
-                      class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      class="px-1 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
-                      Billable %
+                      {{ imsMode ? 'Billable Hours' : 'Billable %' }}
                     </th>
                   </tr>
                 </thead>
@@ -189,15 +192,11 @@
         </div>
       </div>
 
-      <JobMetricsModal
-        v-if="weeklyData?.job_metrics"
-        :metrics="weeklyData.job_metrics"
-        :total-hours="weeklyData.weekly_summary.total_hours"
-        :billable-percentage="weeklyData.weekly_summary.billable_percentage"
-        :staff-count="weeklyData.staff_data.length"
-        :completed-staff="completedStaff"
-        :open="showJobMetricsModal"
-        @close="closeJobMetricsModal"
+      <WeeklyMetricsModal
+        :is-open="showWeeklyMetricsModal"
+        :weekly-data="weeklyData"
+        :week-date="formatToLocalString(selectedWeekStart)"
+        @close="closeWeeklyMetricsModal"
       />
 
       <WeekPickerModal
@@ -213,10 +212,9 @@
 <script setup lang="ts">
 import { debugLog } from '@/utils/debug'
 
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import {
   Calendar,
@@ -230,7 +228,7 @@ import {
 } from 'lucide-vue-next'
 
 import StaffWeekRow from '@/components/timesheet/StaffWeekRow.vue'
-import JobMetricsModal from '@/components/timesheet/JobMetricsModal.vue'
+import WeeklyMetricsModal from '@/components/timesheet/WeeklyMetricsModal.vue'
 import WeekPickerModal from '@/components/timesheet/WeekPickerModal.vue'
 
 import {
@@ -259,7 +257,7 @@ const selectedWeekStart = ref(initialWeekStart)
 
 const imsMode = ref(false)
 
-const showJobMetricsModal = ref(false)
+const showWeeklyMetricsModal = ref(false)
 const showWeekPicker = ref(false)
 
 debugLog('🔗 WeeklyTimesheetView URL params:', { week: route.query.week })
@@ -268,9 +266,7 @@ debugLog('📊 Using initial week start:', formatToLocalString(selectedWeekStart
 const displayDays = computed(() => {
   if (!weeklyData.value) return []
 
-  const days = imsMode.value
-    ? (weeklyData.value as IMSWeeklyData).ims_week || []
-    : (weeklyData.value as WeeklyTimesheetData).week_days || []
+  const days = weeklyData.value.week_days || []
 
   if (!imsMode.value) {
     debugLog('displayDays raw:', days)
@@ -293,11 +289,6 @@ const displayDays = computed(() => {
       }
     })
   }
-})
-
-const completedStaff = computed(() => {
-  if (!weeklyData.value) return 0
-  return weeklyData.value.staff_data.filter((staff) => staff.total_hours >= 35).length
 })
 
 const formatDisplayDateRange = (): string => {
@@ -351,7 +342,12 @@ const updateRoute = () => {
 }
 
 const toggleIMSMode = async (checked: boolean): Promise<void> => {
+  debugLog('🔄 IMS Mode toggled:', checked)
   imsMode.value = checked
+  debugLog('🔄 IMS Mode state updated to:', imsMode.value)
+
+  await nextTick()
+  debugLog('🔄 About to reload data in IMS mode:', imsMode.value)
   await loadData()
 }
 
@@ -360,12 +356,12 @@ const goToDailyViewHeader = (date: string) => {
   router.push({ name: 'timesheet-daily', query: { date } })
 }
 
-const openJobMetricsModal = (): void => {
-  showJobMetricsModal.value = true
+const openWeeklyMetricsModal = (): void => {
+  showWeeklyMetricsModal.value = true
 }
 
-const closeJobMetricsModal = (): void => {
-  showJobMetricsModal.value = false
+const closeWeeklyMetricsModal = (): void => {
+  showWeeklyMetricsModal.value = false
 }
 
 const openWeekPicker = (): void => {
@@ -412,5 +408,53 @@ tbody tr:hover {
 
 .animate-pulse-glow {
   animation: pulse-glow 2s infinite;
+}
+
+.ims-data-cell {
+  min-width: 120px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.ims-data-cell .border-t {
+  border-top: 1px solid #d1d5db;
+}
+
+.text-amber-600 {
+  color: #d97706;
+}
+
+.text-red-600 {
+  color: #dc2626;
+}
+
+.text-blue-600 {
+  color: #2563eb;
+}
+
+.text-green-600 {
+  color: #059669;
+}
+
+.text-orange-600 {
+  color: #ea580c;
+}
+
+/* Backgrounds para seções */
+.bg-gray-50 {
+  background-color: #f9fafb;
+}
+
+.bg-green-50 {
+  background-color: #f0fdf4;
+}
+
+.bg-orange-100 {
+  background-color: #fed7aa;
+}
+
+.text-orange-800 {
+  color: #9a3412;
 }
 </style>

@@ -18,7 +18,19 @@
             </tr>
           </thead>
           <tbody>
+            <tr v-if="isLoading">
+              <td colspan="5" class="p-8 text-center">
+                <div class="flex items-center justify-center gap-2">
+                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                  Delivery receipts are still loading, please wait
+                </div>
+              </td>
+            </tr>
+            <tr v-else-if="pagedReceipts.length === 0">
+              <td colspan="5" class="p-8 text-center text-gray-500">No delivery receipts found</td>
+            </tr>
             <tr
+              v-else
               v-for="receipt in pagedReceipts"
               :key="receipt.id"
               class="border-b hover:bg-slate-50"
@@ -74,15 +86,15 @@ import { Button } from '@/components/ui/button'
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
-import api from '@/plugins/axios'
+import { api } from '../../api/generated/api'
 
-interface Receipt {
-  id: string
-  po_number: string
-  supplier: string
-  order_date: string
-  status: string
-}
+// Import types from generated API schemas
+import type { PurchaseOrderList } from '@/api/generated/api'
+
+// Use PurchaseOrderList as it contains the same fields needed for receipt listing
+type Receipt = PurchaseOrderList
+
+const isLoading = ref(true)
 const receipts = ref<Receipt[]>([])
 const router = useRouter()
 
@@ -137,9 +149,17 @@ const deleteReceipt = (id: string) => {
 }
 
 onMounted(async () => {
-  const res = await api.get('/purchasing/rest/purchase-orders/', {
-    params: { status: 'submitted,partially_received' },
-  })
-  receipts.value = Array.isArray(res.data) ? res.data : []
+  try {
+    isLoading.value = true
+    const response = await api.listPurchaseOrders({
+      queries: { status: 'submitted,partially_received' },
+    })
+    receipts.value = response || []
+  } catch (error) {
+    console.error('Error loading delivery receipts:', error)
+    receipts.value = []
+  } finally {
+    isLoading.value = false
+  }
 })
 </script>

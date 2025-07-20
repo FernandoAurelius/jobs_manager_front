@@ -91,14 +91,36 @@
           >
             <div class="flex items-center space-x-3">
               <div class="flex-shrink-0">
+                <!-- Show thumbnail if available -->
                 <img
                   v-if="file.thumbnail_url"
                   :src="file.thumbnail_url"
                   :alt="file.filename"
-                  class="w-10 h-10 object-cover rounded"
+                  class="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80"
+                  @click="openImagePreview(file)"
+                  @error="onImageError"
                 />
+                <!-- Show image preview if it's an image file but no thumbnail -->
+                <img
+                  v-else-if="isImageJobFile(file) && file.download_url"
+                  :src="file.download_url"
+                  :alt="file.filename"
+                  class="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80"
+                  @click="openImagePreview(file)"
+                  @error="onImageError"
+                />
+                <!-- Show file icon for other files -->
                 <div v-else class="w-10 h-10 bg-gray-300 rounded flex items-center justify-center">
                   <svg
+                    v-if="isPdfFile(file)"
+                    class="w-6 h-6 text-red-600"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path d="M4 18h12V6l-4-4H4v16zm8-14v2h2l-2-2z" />
+                  </svg>
+                  <svg
+                    v-else
                     class="w-6 h-6 text-gray-600"
                     fill="none"
                     stroke="currentColor"
@@ -167,7 +189,7 @@
             </div>
           </div>
 
-          <div v-if="files.length === 0" class="text-center py-8">
+          <div v-if="files.length === 0 && !isLoading" class="text-center py-8">
             <svg
               class="mx-auto h-12 w-12 text-gray-400"
               stroke="currentColor"
@@ -184,6 +206,13 @@
             <h3 class="mt-2 text-sm font-medium text-gray-900">No attachments</h3>
             <p class="mt-1 text-sm text-gray-500">Get started by uploading a file.</p>
           </div>
+
+          <div v-if="files.length === 0 && isLoading" class="text-center py-8">
+            <div class="flex flex-col items-center gap-2">
+              <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+              <p class="text-sm text-gray-500">Loading job attachments, please wait</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -192,6 +221,39 @@
           @click="closeModal"
           type="button"
           class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          Close
+        </button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <!-- Image Preview Modal -->
+  <Dialog :open="isImagePreviewOpen" @update:open="closeImagePreview">
+    <DialogContent class="max-w-4xl max-h-[90vh] overflow-auto">
+      <DialogHeader>
+        <DialogTitle>{{ previewImage?.filename }}</DialogTitle>
+      </DialogHeader>
+      <div class="flex justify-center items-center p-4">
+        <img
+          v-if="previewImage"
+          :src="previewImage.thumbnail_url || previewImage.download_url"
+          :alt="previewImage.filename"
+          class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+        />
+      </div>
+      <DialogFooter>
+        <button
+          @click="downloadFile(previewImage!)"
+          type="button"
+          class="px-4 py-2 text-sm font-medium text-indigo-600 bg-white border border-indigo-300 rounded-md hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          Download
+        </button>
+        <button
+          @click="closeImagePreview"
+          type="button"
+          class="px-4 py-2 text-sm font-medium text-white bg-gray-600 border border-transparent rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
         >
           Close
         </button>
@@ -218,16 +280,17 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import CameraModal from './CameraModal.vue'
-import type { JobFile } from '@/schemas/job.schemas'
-import { jobRestService } from '@/services/job-rest.service'
+import { schemas } from '@/api/generated/api'
+import { jobService } from '@/services/job.service'
+import { z } from 'zod'
 
-interface Props {
+type JobFile = z.infer<typeof schemas.JobFile>
+
+const props = defineProps<{
   jobId: string
   jobNumber: number | undefined
   isOpen: boolean
-}
-
-const props = defineProps<Props>()
+}>()
 
 const emit = defineEmits<{
   close: []
@@ -239,6 +302,7 @@ const files = ref<JobFile[]>([])
 const uploadProgress = ref(0)
 const fileInput = ref<HTMLInputElement>()
 const uploading = ref(false)
+const isLoading = ref(false)
 const isCameraModalOpen = ref(false)
 
 async function loadFiles() {
@@ -247,11 +311,14 @@ async function loadFiles() {
     return
   }
 
+  isLoading.value = true
   try {
-    const list = await jobRestService.listJobFiles(String(props.jobNumber))
+    const list = await jobService.listJobFiles(String(props.jobNumber))
     files.value = list
   } catch (err) {
     debugLog('Failed to load files:', err)
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -390,11 +457,7 @@ const uploadFile = async (file: File) => {
   uploading.value = true
 
   try {
-    const uploaded = await jobRestService.uploadJobFile(
-      props.jobNumber,
-      [file],
-      (progress) => (uploadProgress.value = progress),
-    )
+    const uploaded = await jobService.uploadJobFiles(String(props.jobNumber), [file])
 
     if (uploaded.length > 0) {
       files.value.push(...uploaded)
@@ -420,7 +483,7 @@ async function deleteFile(id: string) {
   if (!confirm('Are you sure you want to delete this file?')) return
 
   try {
-    await jobRestService.deleteJobFile(id)
+    await jobService.deleteJobFile(id)
     emit('file-deleted', id)
     await loadFiles()
   } catch (err) {
@@ -441,10 +504,8 @@ async function updatePrintSetting(file: JobFile) {
   })
 
   try {
-    const response = await jobRestService.updateJobFile({
-      job_number: String(props.jobNumber),
+    const response = await jobService.updateJobFile({
       file_id: file.id,
-      filename: file.filename,
       print_on_jobsheet: file.print_on_jobsheet,
     })
 
@@ -496,6 +557,35 @@ const formatFileSize = (bytes: number) => {
 
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString()
+}
+
+// Helper functions for file types
+const isImageJobFile = (file: JobFile): boolean => {
+  return file.mime_type?.startsWith('image/') || false
+}
+
+const isPdfFile = (file: JobFile): boolean => {
+  return file.mime_type === 'application/pdf'
+}
+
+// Image preview modal
+const previewImage = ref<JobFile | null>(null)
+const isImagePreviewOpen = ref(false)
+
+const openImagePreview = (file: JobFile) => {
+  previewImage.value = file
+  isImagePreviewOpen.value = true
+}
+
+const closeImagePreview = () => {
+  previewImage.value = null
+  isImagePreviewOpen.value = false
+}
+
+const onImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement
+  // Hide broken image by setting a placeholder
+  img.style.display = 'none'
 }
 
 onMounted(() => {

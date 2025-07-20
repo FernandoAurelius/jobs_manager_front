@@ -12,69 +12,21 @@
             </button>
           </div>
           <div class="mb-3">
-            <h1 class="text-lg font-bold text-gray-900 leading-tight">
-              {{ jobData?.name || 'Loading...' }}
-            </h1>
-            <p class="text-sm text-gray-500 mt-1">
+            <div class="flex items-center gap-2 mb-1">
+              <h1 class="text-lg font-bold text-gray-900 leading-tight">
+                {{ jobData?.name || 'Loading...' }}
+              </h1>
+              <span
+                v-if="shouldShowQuoteWarning"
+                class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200"
+                :title="`Quote accepted on ${formatDate(jobDataWithPaid?.quote_acceptance_date || '')} - Create a revision to edit`"
+              >
+                Quote Accepted
+              </span>
+            </div>
+            <p class="text-sm text-gray-500">
               Job #{{ jobData?.job_number }} • {{ jobData?.client_name }}
             </p>
-          </div>
-          <div class="flex space-x-2 overflow-x-auto pb-2">
-            <DraggableButton
-              variant="ghost"
-              @click="openSettingsModal"
-              class="text-blue-600 hover:bg-blue-50 flex-shrink-0"
-              size="sm"
-            >
-              <Settings class="w-4 h-4" />
-            </DraggableButton>
-            <DraggableButton
-              variant="ghost"
-              @click="openWorkflowModal"
-              class="text-green-600 hover:bg-green-50 flex-shrink-0"
-              size="sm"
-            >
-              <Wrench class="w-4 h-4" />
-            </DraggableButton>
-            <DraggableButton
-              variant="ghost"
-              @click="openHistoryModal"
-              class="text-purple-600 hover:bg-purple-50 flex-shrink-0"
-              size="sm"
-            >
-              <BookOpen class="w-4 h-4" />
-            </DraggableButton>
-            <DraggableButton
-              variant="ghost"
-              @click="openAttachmentsModal"
-              class="text-orange-600 hover:bg-orange-50 flex-shrink-0"
-              size="sm"
-            >
-              <Paperclip class="w-4 h-4" />
-            </DraggableButton>
-            <DraggableButton
-              variant="ghost"
-              @click="openQuotingChat"
-              class="text-cyan-600 hover:bg-cyan-50 flex-shrink-0"
-              size="sm"
-              v-if="jobDataWithPaid"
-            >
-              <span class="sr-only">Open Quoting Chat</span>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-4-.8l-4.286 1.072A1 1 0 012 19.13V19a1 1 0 01.553-.894l2.276-1.138A7.963 7.963 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                />
-              </svg>
-            </DraggableButton>
           </div>
         </div>
         <div class="hidden md:flex items-center justify-between h-12">
@@ -87,75 +39,26 @@
               <ArrowLeft class="w-5 h-5" />
             </button>
             <div class="flex flex-col justify-center h-full">
-              <h1 class="text-lg font-bold text-gray-900 leading-tight">
-                {{ jobData?.name || 'Loading...' }}
-              </h1>
+              <div class="flex items-center gap-2">
+                <h1 class="text-lg font-bold text-gray-900 leading-tight">
+                  {{ jobData?.name || 'Loading...' }}
+                </h1>
+                <span
+                  v-if="shouldShowQuoteWarning"
+                  class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200"
+                  :title="`Quote accepted on ${formatDate(jobDataWithPaid?.quote_acceptance_date || '')} - Create a revision to edit`"
+                >
+                  Quote Accepted
+                </span>
+              </div>
               <p class="text-xs text-gray-500">
                 Job #{{ jobData?.job_number }} • {{ jobData?.client_name }}
               </p>
             </div>
           </div>
-          <div class="flex items-center space-x-4 h-full">
-            <div class="flex space-x-2 h-full items-center">
-              <DraggableButton
-                variant="ghost"
-                @click="openSettingsModal"
-                class="text-blue-600 hover:bg-blue-50"
-                size="sm"
-              >
-                <Settings class="w-4 h-4" />
-              </DraggableButton>
-              <DraggableButton
-                variant="ghost"
-                @click="openWorkflowModal"
-                class="text-green-600 hover:bg-green-50"
-                size="sm"
-              >
-                <Wrench class="w-4 h-4" />
-              </DraggableButton>
-              <DraggableButton
-                variant="ghost"
-                @click="openHistoryModal"
-                class="text-purple-600 hover:bg-purple-50"
-                size="sm"
-              >
-                <BookOpen class="w-4 h-4" />
-              </DraggableButton>
-              <DraggableButton
-                variant="ghost"
-                @click="openAttachmentsModal"
-                class="text-orange-600 hover:bg-orange-50"
-                size="sm"
-              >
-                <Paperclip class="w-4 h-4" />
-              </DraggableButton>
-              <DraggableButton
-                variant="ghost"
-                @click="openQuotingChat"
-                class="text-cyan-600 hover:bg-cyan-50"
-                size="sm"
-                v-if="jobDataWithPaid"
-              >
-                <span class="sr-only">Open Quoting Chat</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="w-4 h-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-4-.8l-4.286 1.072A1 1 0 012 19.13V19a1 1 0 01.553-.894l2.276-1.138A7.963 7.963 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                  />
-                </svg>
-              </DraggableButton>
-            </div>
-          </div>
         </div>
       </div>
+
       <div
         v-if="loadingJob || jobError"
         class="flex flex-1 items-center justify-center min-h-[200px]"
@@ -179,6 +82,9 @@
           @quote-created="handleQuoteCreated"
           @quote-accepted="handleQuoteAccepted"
           @invoice-created="handleInvoiceCreated"
+          @quote-deleted="handleQuoteDeleted"
+          @invoice-deleted="handleInvoiceDeleted"
+          @reload-job="handleReloadJob"
         />
       </template>
       <div class="flex-shrink-0 bg-gray-50 border-t border-gray-200 px-4 py-3 md:px-6 md:py-4">
@@ -277,7 +183,7 @@
         v-if="showPdfDialog && jobDataWithPaid"
         :job-id="jobId"
         :job-number="jobDataWithPaid.job_number"
-        :is-open="showPdfDialog"
+        :open="showPdfDialog"
         @update:open="showPdfDialog = $event"
       />
     </div>
@@ -301,16 +207,8 @@ import { useJobTabs } from '@/composables/useJobTabs'
 import { useJobNotifications } from '@/composables/useJobNotifications'
 import { useJobEvents } from '@/composables/useJobEvents'
 import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
-import {
-  ArrowLeft,
-  Printer,
-  Trash2,
-  X,
-  Settings,
-  Wrench,
-  BookOpen,
-  Paperclip,
-} from 'lucide-vue-next'
+import { api } from '../api/generated/api'
+import { ArrowLeft, Printer, Trash2, X } from 'lucide-vue-next'
 import DraggableButton from '@/components/job/DraggableButton.vue'
 
 const route = useRoute()
@@ -326,7 +224,7 @@ onMounted(async () => {
 })
 
 const { jobEvents, addEvent, loading: jobEventsLoading } = useJobEvents(jobId)
-const { activeTab, setTab } = useJobTabs('estimate')
+const { activeTab, setTab } = useJobTabs('actual')
 const notifications = useJobNotifications()
 
 const companyDefaultsStore = useCompanyDefaultsStore()
@@ -342,11 +240,65 @@ const jobDataWithPaid = computed(() => {
 })
 const jobError = computed(() => !loadingJob.value && !jobData.value)
 
+// Quote status computed properties
+const isQuoteAccepted = computed(() => {
+  return !!jobDataWithPaid.value?.quote_acceptance_date
+})
+
+// Check if there are any quote revisions available
+const hasQuoteRevisions = computed(() => {
+  if (!quoteRevisionsData.value) return false
+  return quoteRevisionsData.value.total_revisions > 0
+})
+
+// Show warning only if quote is accepted AND there are no revisions
+const shouldShowQuoteWarning = computed(() => {
+  return isQuoteAccepted.value && !hasQuoteRevisions.value
+})
+
+// Format date function
+const formatDate = (dateString: string) => {
+  if (!dateString) return ''
+  return new Date(dateString).toLocaleDateString('en-AU', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 const showSettingsModal = ref(false)
 const showWorkflowModal = ref(false)
 const showHistoryModal = ref(false)
 const showAttachmentsModal = ref(false)
 const showPdfDialog = ref(false)
+
+// Store quote revisions data to check if edits should be blocked
+const quoteRevisionsData = ref<{ total_revisions: number } | null>(null)
+
+// Fetch quote revisions to determine if edits should be blocked
+async function fetchQuoteRevisions() {
+  if (!jobId.value) return
+  try {
+    const response = await api.job_rest_jobs_cost_sets_quote_revise_retrieve({
+      params: { job_id: jobId.value },
+    })
+    quoteRevisionsData.value = response
+  } catch {
+    // Silently fail - if we can't fetch revisions, assume no revisions exist
+    quoteRevisionsData.value = { total_revisions: 0 }
+  }
+}
+
+// Watch for quote acceptance to fetch revisions data
+watch(
+  () => jobDataWithPaid.value?.quote_acceptance_date,
+  (acceptanceDate) => {
+    if (acceptanceDate) {
+      fetchQuoteRevisions()
+    }
+  },
+  { immediate: true },
+)
 
 function openSettingsModal() {
   showSettingsModal.value = true
@@ -362,19 +314,6 @@ function openAttachmentsModal() {
 }
 function openPdfDialog() {
   showPdfDialog.value = true
-}
-function openQuotingChat() {
-  if (!jobDataWithPaid.value) return
-  router.push({
-    name: 'QuotingChatView',
-    query: {
-      jobId: jobDataWithPaid.value.id,
-      jobName: jobDataWithPaid.value.name,
-      jobNumber: jobDataWithPaid.value.job_number,
-      clientName: jobDataWithPaid.value.client_name,
-    },
-  })
-  debugLog('JobView - Navigated to QuotingChatView', jobDataWithPaid.value)
 }
 
 function handleJobUpdated(updatedJob) {
@@ -403,37 +342,68 @@ async function deleteJob() {
   if (!jobId.value) return
   const jobName = jobData.value?.name || `Job #${jobData.value?.job_number}` || 'job'
   try {
-    notifications.notifyJobUpdated(`Deleting ${jobName}...`)
-    const { jobRestService } = await import('@/services/job-rest.service')
-    const result = await jobRestService.deleteJob(jobId.value)
+    notifications.notifyDeleteStart(jobName)
+    const { jobService } = await import('@/services/job.service')
+    const result = await jobService.deleteJob(jobId.value)
     if (result.success) {
-      notifications.notifyJobUpdated(`${jobName} deleted!`)
+      notifications.notifyDeleteSuccess(jobName)
       navigateBack()
     } else {
       throw new Error(result.error || 'Failed to delete job')
     }
-  } catch {
-    notifications.notifyJobUpdated(`Error deleting ${jobName}`)
+  } catch (err: unknown) {
+    notifications.notifyDeleteError(
+      (err as Error)?.message || 'Unexpected error when trying to delete job ',
+      jobName,
+    )
+    debugLog('JobView - Error deleting job:', err)
   }
 }
 
 function handleQuoteImported() {
   notifications.notifyJobUpdated('Quote imported')
+  // Reload job data to show the imported quote
+  jobsStore.fetchJob(jobId.value)
 }
 function handleQuoteCreated() {
   notifications.notifyJobUpdated('Quote created')
+  // Reload job data to show the newly created quote
+  jobsStore.fetchJob(jobId.value)
 }
 function handleQuoteAccepted() {
   notifications.notifyJobUpdated('Quote accepted')
+  // Reload job data to reflect quote acceptance
+  jobsStore.fetchJob(jobId.value)
 }
 function handleInvoiceCreated() {
   notifications.notifyJobUpdated('Invoice created')
+  // Reload job data to show the newly created invoice
+  jobsStore.fetchJob(jobId.value)
+}
+function handleQuoteDeleted() {
+  notifications.notifyJobUpdated('Quote deleted')
+  // Reload job data to reflect quote deletion
+  jobsStore.fetchJob(jobId.value)
+}
+function handleInvoiceDeleted() {
+  notifications.notifyJobUpdated('Invoice deleted')
+  // Reload job data to reflect invoice deletion
+  jobsStore.fetchJob(jobId.value)
 }
 function handleFileUploaded() {
   notifications.notifyJobUpdated('File uploaded')
+  // Reload job data to update file list
+  jobsStore.fetchJob(jobId.value)
 }
 function handleFileDeleted() {
   notifications.notifyJobUpdated('File deleted')
+  // Reload job data to update file list
+  jobsStore.fetchJob(jobId.value)
+}
+
+function handleReloadJob() {
+  // Simple job reload when cost lines are changed
+  jobsStore.fetchJob(jobId.value)
 }
 
 debugLog('JobView - jobId:', jobId.value)

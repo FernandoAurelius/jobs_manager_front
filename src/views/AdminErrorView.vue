@@ -40,7 +40,12 @@ import ErrorFilter from '@/components/admin/errors/ErrorFilter.vue'
 import ErrorTable from '@/components/admin/errors/ErrorTable.vue'
 import ErrorDialog from '@/components/admin/errors/ErrorDialog.vue'
 import { ref, watch, onMounted } from 'vue'
-import { useErrorApi, type ErrorRecord } from '@/composables/useErrorApi'
+import { useErrorApi } from '@/composables/useErrorApi'
+import { z } from 'zod'
+import { schemas } from '@/api/generated/api'
+
+// Use generated types from Zodios API
+type XeroError = z.infer<typeof schemas.XeroError>
 
 interface DateRange {
   start: string | null
@@ -49,7 +54,7 @@ interface DateRange {
 
 const { fetchErrors, error: fetchError } = useErrorApi()
 
-const errors = ref<ErrorRecord[]>([])
+const errors = ref<XeroError[]>([])
 const loading = ref(false)
 const page = ref(1)
 const pageCount = ref(1)

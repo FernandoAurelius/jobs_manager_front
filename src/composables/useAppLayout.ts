@@ -1,8 +1,8 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import type { NavigationItem, UserInfo } from '@/types/app-layout.types'
-import { debugLog } from '@/utils/debug'
+import { useAuthStore } from '../stores/auth'
+import type { NavigationItem, UserInfo } from '../api/local/schemas'
+import { debugLog } from '../utils/debug'
 
 export function useAppLayout() {
   const router = useRouter()
@@ -29,6 +29,12 @@ export function useAppLayout() {
         username: 'guest',
         is_staff: false,
         is_active: false,
+        first_name: '',
+        last_name: '',
+        preferred_name: '',
+        email: '',
+        id: '',
+        fullName: '',
       }
     }
 
@@ -41,6 +47,9 @@ export function useAppLayout() {
       first_name: user.first_name || '',
       last_name: user.last_name || '',
       preferred_name: user.preferred_name || '',
+      email: user.email || '',
+      id: user.id || '',
+      fullName: fullName || '',
     }
   })
 

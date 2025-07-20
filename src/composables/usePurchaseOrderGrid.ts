@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, type Ref } from 'vue'
 import type {
   GridApi,
   ColDef,
@@ -8,13 +8,13 @@ import type {
   ValueFormatterParams,
 } from 'ag-grid-community'
 import { customTheme } from '@/plugins/ag-grid'
-import type { PurchaseOrderLine } from '@/types/purchaseOrder.types'
+import type { PurchaseOrderLineUI } from '@/api/local/schemas'
 import { PoLineJobCellEditor } from '@/components/purchasing/PoLineJobCellEditor'
 
-export function usePurchaseOrderGrid(lines: Ref<PurchaseOrderLine[]>) {
+export function usePurchaseOrderGrid(lines: Ref<PurchaseOrderLineUI[]>) {
   const gridApi = ref<GridApi | null>(null)
 
-  const columnDefs = ref<ColDef<PurchaseOrderLine>[]>([
+  const columnDefs = ref<ColDef<PurchaseOrderLineUI>[]>([
     {
       headerName: 'Job',
       field: 'job_number',
@@ -23,7 +23,7 @@ export function usePurchaseOrderGrid(lines: Ref<PurchaseOrderLine[]>) {
       cellEditor: PoLineJobCellEditor,
       cellEditorPopup: true,
       cellRenderer: (params: ICellRendererParams) => {
-        const { job_number, client_name } = params.data as PurchaseOrderLine
+        const { job_number, client_name } = params.data as PurchaseOrderLineUI
         if (!job_number) return '<em style="color: #9CA3AF;">Select job...</em>'
         return `
           <div style="display: flex; flex-direction: column;">
@@ -68,7 +68,7 @@ export function usePurchaseOrderGrid(lines: Ref<PurchaseOrderLine[]>) {
       width: 120,
       type: 'numericColumn',
       valueGetter: (params) => {
-        const data = params.data as PurchaseOrderLine
+        const data = params.data as PurchaseOrderLineUI
         return (data.quantity || 0) * (data.unit_price || 0)
       },
       valueFormatter: (params: ValueFormatterParams) => `$${(params.value || 0).toFixed(2)}`,
@@ -86,7 +86,7 @@ export function usePurchaseOrderGrid(lines: Ref<PurchaseOrderLine[]>) {
     },
   ])
 
-  const gridOptions = computed<GridOptions<PurchaseOrderLine>>(() => ({
+  const gridOptions = computed<GridOptions<PurchaseOrderLineUI>>(() => ({
     theme: customTheme,
     columnDefs: columnDefs.value,
     rowData: lines.value,
@@ -124,7 +124,7 @@ export function usePurchaseOrderGrid(lines: Ref<PurchaseOrderLine[]>) {
   }))
 
   const addLine = () => {
-    const newLine: PurchaseOrderLine = {
+    const newLine: PurchaseOrderLineUI = {
       id: `temp-${Date.now()}`,
       item_name: '',
       description: '',

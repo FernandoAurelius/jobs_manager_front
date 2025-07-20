@@ -1,104 +1,18 @@
-import apiClient from './api'
+import { api } from '@/api/generated/api'
+import type {
+  KPICalendarData,
+  KPIDayData,
+  KPIDetails,
+  KPIJobBreakdown,
+  KPIMonthlyTotals,
+  KPIThresholds,
+} from '@/api/generated/api'
 import { debugLog } from '@/utils/debug'
 
-export interface KPIDay {
-  date: string
-  total_hours: number
-  billable_hours: number
-  revenue: number
-  costs: number
-  profit: number
-  profit_margin: number
-  status: 'green' | 'amber' | 'red' | 'neutral'
-  entries_count: number
-  staff_count: number
-}
-
-export interface KPICalendarData {
-  calendar_data: Record<string, KPIDay>
-  monthly_totals: {
-    total_hours: number
-    billable_hours: number
-    revenue: number
-    costs: number
-    profit: number
-  }
-  thresholds: {
-    profit_margin: {
-      green: number
-      amber: number
-      red: number
-    }
-    utilization: {
-      green: number
-      amber: number
-      red: number
-    }
-  }
-  mode: 'timesheet' | 'ims'
-}
-
+// Types for params - keeping as local since they're for input validation
 export interface KPICalendarParams {
   start_date: string
   mode?: 'timesheet' | 'ims'
-}
-
-export interface DayKPI {
-  date: string
-  day: number
-  holiday: boolean
-  billable_hours: number
-  total_hours: number
-  shop_hours: number
-  gross_profit: number
-  color: 'green' | 'amber' | 'red'
-  details: DayDetails
-}
-
-export interface DayDetails {
-  time_revenue: number
-  material_revenue: number
-  total_revenue: number
-  staff_cost: number
-  material_cost: number
-  total_cost: number
-  job_breakdown: JobBreakdown[]
-}
-
-export interface JobBreakdown {
-  job_id: string
-  job_number: number
-  job_display_name: string
-  labour_profit: number
-  material_profit: number
-  adjustment_profit: number
-  total_profit: number
-}
-
-export interface MonthlyTotals {
-  billable_hours: number
-  total_hours: number
-  gross_profit: number
-  net_profit: number
-  working_days: number
-  days_green: number
-  days_amber: number
-  days_red: number
-}
-
-export interface Thresholds {
-  billable_threshold_green: number
-  billable_threshold_amber: number
-  daily_gp_target: number
-  shop_hours_target: number
-}
-
-export interface KPICalendarResponse {
-  calendar_data: Record<string, DayKPI>
-  monthly_totals: MonthlyTotals
-  thresholds: Thresholds
-  year: number
-  month: number
 }
 
 export interface KPIAccountingParams {
@@ -106,19 +20,26 @@ export interface KPIAccountingParams {
   month?: number
 }
 
+// Type aliases for generated types (for backward compatibility)
+export type KPIDay = KPIDayData
+export type DayKPI = KPIDayData
+export type DayDetails = KPIDetails
+export type JobBreakdown = KPIJobBreakdown
+export type MonthlyTotals = KPIMonthlyTotals
+export type Thresholds = KPIThresholds
+export type KPICalendarResponse = KPICalendarData
+
 class KPIService {
   private baseUrl = '/timesheet/api'
   private accountingBaseUrl = '/accounting/api'
 
   async getKPICalendarData(params: KPICalendarParams): Promise<KPICalendarData> {
     try {
-      const searchParams = new URLSearchParams({
+      // Use the generated API
+      return await api.accounting_api_reports_calendar_retrieve({
         start_date: params.start_date,
-        ...(params.mode && { mode: params.mode }),
+        mode: params.mode,
       })
-
-      const response = await apiClient.get(`${this.baseUrl}/kpi-calendar/?${searchParams}`)
-      return response.data
     } catch (error) {
       debugLog('❌ Error fetching KPI calendar data:', error)
       throw error
@@ -129,15 +50,23 @@ class KPIService {
     params: KPIAccountingParams = {},
   ): Promise<KPICalendarResponse> {
     try {
-      const searchParams = new URLSearchParams()
-      if (params.year) searchParams.append('year', params.year.toString())
-      if (params.month) searchParams.append('month', params.month.toString())
+      debugLog('🔍 Fetching KPI data with params:', params)
 
-      const queryString = searchParams.toString()
-      const url = `${this.accountingBaseUrl}/reports/calendar/${queryString ? `?${queryString}` : ''}`
+      // Use the generated Zodios client with query parameters
+      const response = await api.accounting_api_reports_calendar_retrieve({
+        queries: {
+          year: params.year,
+          month: params.month,
+        },
+      })
 
-      const response = await apiClient.get(url)
-      return response.data
+      debugLog('✅ KPI data fetched successfully:', {
+        year: response.year,
+        month: response.month,
+        daysCount: Object.keys(response.calendar_data).length,
+      })
+
+      return response
     } catch (error) {
       debugLog('❌ Error fetching accounting KPI calendar data:', error)
       throw error
@@ -199,7 +128,7 @@ class KPIService {
   }
 
   getWeekDays(startDate: Date): Date[] {
-    const days = []
+    const days: Date[] = []
     for (let i = 0; i < 5; i++) {
       const day = new Date(startDate)
       day.setDate(startDate.getDate() + i)
@@ -209,7 +138,7 @@ class KPIService {
   }
 
   getIMSWeekDays(startDate: Date): Date[] {
-    const days = []
+    const days: Date[] = []
 
     const tuesday = new Date(startDate)
     const dayOfWeek = tuesday.getDay()

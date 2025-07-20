@@ -1,37 +1,12 @@
-import api from '@/plugins/axios'
-import { debugLog } from '@/utils/debug'
+import { api } from '../api/generated/api'
+import { debugLog } from '../utils/debug'
+import { schemas } from '../api/generated/api'
+import { z } from 'zod'
 
-export interface Client {
-  id?: number
-  name: string
-  email?: string
-  phone?: string
-  address?: string
-  contact_person?: string
-}
-
-export interface CreateClientData {
-  name: string
-  email?: string
-  phone?: string
-  address?: string
-  is_account_customer?: boolean
-}
-
-export interface CreateClientResponse {
-  success: boolean
-  client?: {
-    id: string
-    name: string
-    email: string
-    phone: string
-    address: string
-    is_account_customer: boolean
-    xero_contact_id: string
-  }
-  error?: string
-  message?: string
-}
+// Use generated schemas
+export type Client = z.infer<typeof schemas.ClientSearchResult>
+export type CreateClientData = z.infer<typeof schemas.ClientCreateRequest>
+import type { CreateClientResponse } from '../api/local/schemas'
 
 export class ClientService {
   private static instance: ClientService
@@ -45,30 +20,24 @@ export class ClientService {
 
   async createClient(data: CreateClientData): Promise<CreateClientResponse> {
     try {
-      const response = await api.post('/clients/rest/create/', data)
-      return response.data
+      const response = await api.clients_create_create(data)
+      return {
+        success: true,
+        client: response,
+      }
     } catch (error: unknown) {
       debugLog('Error creating client:', error)
-
-      if (error && typeof error === 'object' && 'response' in error) {
-        const apiError = error as { response?: { data?: { error?: string } } }
-        if (apiError.response?.data) {
-          return {
-            success: false,
-            error: apiError.response.data.error || 'Failed to create client',
-          }
-        }
+      return {
+        success: false,
+        error: 'Failed to create client',
       }
-
-      throw new Error('Failed to create client')
     }
   }
 
   async getAllClients(): Promise<Client[]> {
     try {
-      const response = await api.get('/clients/rest/all/')
-
-      return Array.isArray(response.data) ? response.data : []
+      const response = await api.clients_all_retrieve()
+      return Array.isArray(response) ? response : []
     } catch (error) {
       debugLog('Error fetching clients:', error)
       throw new Error('Failed to load clients')

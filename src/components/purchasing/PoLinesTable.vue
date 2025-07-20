@@ -13,57 +13,24 @@ import { Trash2, Settings2 } from 'lucide-vue-next'
 import { metalTypeOptions } from '@/utils/metalType'
 import ItemSelect from '@/views/purchasing/ItemSelect.vue'
 import JobSelect from './JobSelect.vue'
+import { schemas } from '@/api/generated/api'
+import { DataTableRowContextSchema, PoLineUISchema, type XeroItemUI } from '@/api/local/schemas'
+import { z } from 'zod'
 
-interface DataTableRowContext {
-  row: {
-    original: Line
-    index: number
-  }
-}
-
-interface Line {
-  id?: string
-  item_code: string
-  description: string
-  quantity: number
-  unit_cost: number | null
-  price_tbc: boolean
-  job_id?: string
-  job_number?: string
-  job_name?: string
-  client_name?: string
-  metal_type?: string
-  alloy?: string
-  specifics?: string
-  location?: string
-  dimensions?: string
-}
-
-interface Job {
-  id: string
-  job_number: string
-  name: string
-  client_name: string
-  status: string
-  charge_out_rate: number
-}
-
-interface XeroItem {
-  id: string
-  code: string
-  name: string
-  unit_cost?: number | null
-}
+type PoLineUI = z.infer<typeof PoLineUISchema>
+type DataTableRowContext = z.infer<typeof DataTableRowContextSchema>
+type JobForPurchasing = z.infer<typeof schemas.JobForPurchasing>
 
 type Props = {
-  lines: Line[]
-  items: XeroItem[]
-  jobs: Job[]
+  lines: PoLineUI[]
+  items: XeroItemUI[]
+  jobs: JobForPurchasing[]
   readOnly?: boolean
+  jobsReadOnly?: boolean
 }
 
 type Emits = {
-  (e: 'update:lines', lines: Line[]): void
+  (e: 'update:lines', lines: PoLineUI[]): void
   (e: 'add-line'): void
   (e: 'delete-line', id: string | number): void
 }
@@ -151,14 +118,14 @@ const columns = computed(() => [
         'onUpdate:modelValue': props.readOnly
           ? undefined
           : (val: string) => {
-              const found = props.items.find((i) => i.code === val)
+              const found = props.items.find((i) => i.id === val)
               const updated = props.lines.map((l, idx) =>
                 idx === row.index
                   ? {
                       ...l,
-                      item_code: val,
-                      description: found ? found.name : '',
-                      unit_cost: found && found.unit_cost != null ? found.unit_cost : null,
+                      item_code: found ? found.code : val,
+                      description: found ? found.name : l.description,
+                      unit_cost: found && found.unit_cost != null ? found.unit_cost : l.unit_cost,
                     }
                   : l,
               )
@@ -173,7 +140,7 @@ const columns = computed(() => [
     cell: ({ row }: DataTableRowContext) =>
       h(Input, {
         modelValue: row.original.description,
-        disabled: !!row.original.item_code || props.readOnly,
+        disabled: props.readOnly,
         class: 'w-full',
         onClick: (e: Event) => e.stopPropagation(),
         'onUpdate:modelValue': props.readOnly
@@ -195,35 +162,37 @@ const columns = computed(() => [
         required: false,
         placeholder: 'Select Job (Optional)',
         jobs: props.jobs,
-        disabled: props.readOnly,
-        'onUpdate:modelValue': props.readOnly
-          ? undefined
-          : (val: string) => {
-              const updated = props.lines.map((l, idx) =>
-                idx === row.index ? { ...l, job_id: val || undefined } : l,
-              )
-              emit('update:lines', updated)
-            },
-        onJobSelected: props.readOnly
-          ? undefined
-          : (job: { id: string; job_number: string; name: string; client_name: string }) => {
-              if (job) {
+        disabled: props.jobsReadOnly ?? props.readOnly,
+        'onUpdate:modelValue':
+          (props.jobsReadOnly ?? props.readOnly)
+            ? undefined
+            : (val: string) => {
                 const updated = props.lines.map((l, idx) =>
-                  idx === row.index
-                    ? {
-                        ...l,
-                        job_id: job.id,
-                        job_number: job.job_number,
-                        job_name: job.name,
-                        client_name: job.client_name,
-                      }
-                    : l,
+                  idx === row.index ? { ...l, job_id: val || undefined } : l,
                 )
                 emit('update:lines', updated)
-              }
-            },
+              },
+        onJobSelected:
+          (props.jobsReadOnly ?? props.readOnly)
+            ? undefined
+            : (job: { id: string; job_number: string; name: string; client_name: string }) => {
+                if (job) {
+                  const updated = props.lines.map((l, idx) =>
+                    idx === row.index
+                      ? {
+                          ...l,
+                          job_id: job.id,
+                          job_number: job.job_number,
+                          job_name: job.name,
+                          client_name: job.client_name,
+                        }
+                      : l,
+                  )
+                  emit('update:lines', updated)
+                }
+              },
       }),
-    meta: { editable: !props.readOnly },
+    meta: { editable: !(props.jobsReadOnly ?? props.readOnly) },
   },
   {
     id: 'quantity',
@@ -259,7 +228,7 @@ const columns = computed(() => [
         step: '0.01',
         min: '0',
         modelValue: row.original.unit_cost ?? '',
-        disabled: !!row.original.item_code || props.readOnly,
+        disabled: !!row.original.item_code || row.original.price_tbc || props.readOnly,
         class: 'w-24 text-right',
         onClick: (e: Event) => e.stopPropagation(),
         'onUpdate:modelValue': props.readOnly
@@ -279,7 +248,8 @@ const columns = computed(() => [
     cell: ({ row }: DataTableRowContext) =>
       h(Checkbox, {
         modelValue: row.original.price_tbc,
-        disabled: row.original.unit_cost !== null || props.readOnly,
+        disabled:
+          (row.original.unit_cost !== null && Number(row.original.unit_cost) > 0) || props.readOnly,
         'onUpdate:modelValue': props.readOnly
           ? undefined
           : (checked: boolean) => {

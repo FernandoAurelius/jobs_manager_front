@@ -17,8 +17,8 @@
         <PoSummaryCard
           :po="po"
           :is-create-mode="false"
-          :show-actions="canEdit"
-          :sync-enabled="canSync && canEdit"
+          :show-actions="canShowActions"
+          :sync-enabled="canSync"
           :supplier-readonly="!canEditSupplier"
           :class="{
             'opacity-75': isPoDeleted,
@@ -26,10 +26,9 @@
           }"
           @update:supplier="canEditSupplier ? (po.supplier = $event) : null"
           @update:supplier_id="canEditSupplier ? (po.supplier_id = $event) : null"
-          @update:reference="canEdit ? (po.reference = $event) : null"
-          @update:order_date="canEdit ? (po.order_date = $event) : null"
-          @update:expected_delivery="canEdit ? (po.expected_delivery = $event) : null"
-          @update:status="canEdit ? (po.status = $event) : null"
+          @update:reference="!isPoDeleted ? (po.reference = $event) : null"
+          @update:expected_delivery="!isPoDeleted ? (po.expected_delivery = $event) : null"
+          @update:status="canEditStatus ? (po.status = $event) : null"
           @save="saveSummary"
           @sync-xero="syncWithXero"
           @view-xero="viewInXero"
@@ -52,7 +51,8 @@
               :items="xeroItemStore.items"
               :jobs="jobs"
               :read-only="!canEditLineItems"
-              @update:lines="canEditLineItems ? (po.lines = $event) : null"
+              :jobs-read-only="!canEditJobs"
+              @update:lines="canEditLineItems || canEditJobs ? (po.lines = $event) : null"
               @add-line="handleAddLineEvent"
               @delete-line="deleteLine"
             />
@@ -139,46 +139,18 @@ import { usePurchaseOrderStore } from '@/stores/purchaseOrderStore'
 import { useXeroItemStore } from '@/stores/xeroItemStore'
 import { extractErrorMessage, createErrorToast } from '@/utils/errorHandler'
 import { toast } from 'vue-sonner'
+import { api } from '@/api/generated/api'
 import axios from 'axios'
 
-type Status = 'draft' | 'submitted' | 'partially_received' | 'fully_received' | 'deleted'
+// Import types from generated API schemas
+import type { PurchaseOrderLine, PurchaseOrderDetail, JobForPurchasing } from '@/api/generated/api'
 
-interface PurchaseOrderLine {
-  id?: string
-  item_code: string
-  description: string
-  quantity: number
-  unit_cost: number | null
-  price_tbc: boolean
-  job_id?: string
-  metal_type?: string
-  alloy?: string
-  specifics?: string
-  location?: string
-  dimensions?: string
-}
+// Import UI-specific types from local schemas
+import type { XeroSyncResponse } from '@/api/local/schemas'
 
-interface PurchaseOrder {
-  po_number: string
-  supplier: string
-  supplier_id?: string
-  supplier_has_xero_id: boolean
-  reference: string
-  order_date: string
-  expected_delivery: string
-  status: Status
-  lines: PurchaseOrderLine[]
-  online_url?: string
-  xero_id?: string
-}
-
-interface XeroSyncResponse {
-  success: boolean
-  error?: string
-  is_incomplete_po?: boolean
-  online_url?: string
-  xero_id?: string
-}
+// Use the generated interface instead of local type
+type PurchaseOrder = PurchaseOrderDetail
+type Job = JobForPurchasing
 
 const route = useRoute()
 const router = useRouter()
@@ -192,19 +164,6 @@ const isLoading = ref(false)
 const error = ref<string | null>(null)
 const jobs = ref<Job[]>([])
 const isLoadingJobs = ref(false)
-
-interface Job {
-  id: string
-  job_number: string
-  name: string
-  client_name: string
-  status: string
-  charge_out_rate: number
-  cost_set_id?: string
-  cost_centre?: string
-  budget_code?: string
-  job_display_name?: string
-}
 
 const po = ref<PurchaseOrder>({
   po_number: '',
@@ -222,14 +181,14 @@ const linesToDelete = ref<string[]>([])
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 const isPoDeleted = computed(() => po.value.status === 'deleted')
-
 const isPoSubmitted = computed(() => po.value.status === 'submitted')
 
-const canEdit = computed(() => !isPoDeleted.value && !isPoSubmitted.value)
-
+// More granular permissions
 const canEditSupplier = computed(() => !isPoDeleted.value && !isPoSubmitted.value)
-
 const canEditLineItems = computed(() => !isPoDeleted.value && !isPoSubmitted.value)
+const canEditJobs = computed(() => !isPoDeleted.value) // Jobs can be edited even when submitted
+const canEditStatus = computed(() => !isPoDeleted.value) // Status can be changed even when submitted
+const canShowActions = computed(() => !isPoDeleted.value) // Actions available except when deleted
 
 async function fetchJobs() {
   if (isLoadingJobs.value) return
@@ -239,42 +198,20 @@ async function fetchJobs() {
 
   try {
     debugLog('📊 Loading jobs for purchase order...')
-    const response = await axios.get('/purchasing/rest/jobs/')
-    debugLog('📊 Raw response:', response)
-    const rawJobs = response.data || []
-    debugLog('📊 Raw jobs data:', rawJobs)
+    // Use the all-jobs endpoint which returns the expected format with jobs array
+    const response = await api.purchasing_rest_all_jobs_retrieve()
+    debugLog('📊 Zodios response:', response)
 
-    const convertedJobs = rawJobs.map(
-      (job: {
-        id: string
-        job_number: string
-        name?: string
-        job_name?: string
-        client_name?: string
-        charge_out_rate?: number
-        status?: string
-        job_display_name?: string
-      }) => ({
-        id: job.id,
-        job_number: job.job_number,
-        number: job.job_number,
-        name: job.name || job.job_name || '',
-        description: job.name || job.job_name || '',
-        client_name: job.client_name || '',
-        charge_out_rate: job.charge_out_rate || 0,
-        status: job.status || 'active',
-        job_display_name:
-          job.job_display_name || `${job.job_number} - ${job.name || job.job_name || ''}`,
-      }),
-    )
+    if (!response.success) {
+      throw new Error('Failed to fetch jobs from server')
+    }
 
-    jobs.value = convertedJobs
-    ;(window as unknown as Record<string, unknown>).purchasingJobs = convertedJobs
+    jobs.value = response.jobs || []
+    debugLog(`✅ Loaded ${jobs.value.length} jobs for purchase order`)
 
     if (jobs.value.length === 0) {
       toast.warning('No jobs available for purchase order creation')
     } else {
-      debugLog(`✅ Loaded ${jobs.value.length} jobs for purchase order`)
       debugLog('🔧 First job sample:', jobs.value[0])
     }
   } catch (err) {
@@ -308,11 +245,8 @@ async function load() {
   }
 
   try {
-    const data = await store.fetchOne(orderId)
-    po.value = {
-      ...data,
-      lines: Array.isArray(data.lines) ? data.lines : [],
-    }
+    const data = await api.retrievePurchaseOrder({ params: { id: orderId } })
+    po.value = data
     originalLines.value = JSON.parse(JSON.stringify(po.value.lines))
 
     debugLog('✅ PO loaded successfully. Lines:', po.value.lines.length)
@@ -331,7 +265,7 @@ async function load() {
     if (errorMessage.includes('not found') || errorMessage.includes('404')) {
       toast.error('Purchase order not found')
       setTimeout(() => {
-        router.push('/purchasing')
+        router.push('/purchasing/po')
       }, 2000)
     } else {
       toast.error(`Failed to load purchase order: ${errorMessage}`)
@@ -353,7 +287,6 @@ async function saveSummary() {
 
   const updateData = {
     reference: po.value.reference,
-    order_date: po.value.order_date,
     expected_delivery: po.value.expected_delivery,
     status: po.value.status,
   } as Record<string, unknown>
@@ -465,6 +398,12 @@ function deleteLine(idOrIdx: string | number) {
     setTimeout(() => {
       isDeletingLine.value = false
       debugLog('🔓 Deletion flag cleared, autosave re-enabled')
+
+      // Trigger autosave after deletion if there are lines to delete
+      if (linesToDelete.value.length > 0) {
+        debugLog('🗑️ Triggering save for deleted lines')
+        saveLines()
+      }
     }, 500)
   }
 }
@@ -486,6 +425,12 @@ function lineChanged(line: PurchaseOrderLine) {
   const orig = originalLines.value.find((o) => o.id === line.id)
   if (!orig) return true
 
+  // If PO is submitted, only job changes are allowed
+  if (isPoSubmitted.value) {
+    return orig.job_id !== line.job_id
+  }
+
+  // For draft/other statuses, check all fields
   return (
     orig.item_code !== line.item_code ||
     orig.description !== line.description ||
@@ -532,25 +477,32 @@ async function saveLines() {
     return l ? isValidLine(l) : true
   })
 
-  const validLines = po.value.lines.filter(isValidLine)
+  // For submitted POs, we allow all existing lines with IDs (since they're already valid)
+  // For draft POs, we validate using isValidLine
+  const validLines = isPoSubmitted.value
+    ? po.value.lines.filter((line) => line.id) // Submitted: only existing lines with IDs
+    : po.value.lines.filter(isValidLine) // Draft: full validation
 
-  const incompleteLines = po.value.lines.filter((line) => {
-    const hasContent =
-      (line.item_code && line.item_code.trim() !== '') ||
-      (line.description && line.description.trim() !== '')
-    return hasContent && !isValidLine(line)
-  })
+  // Skip incomplete line validation for submitted POs (only job changes allowed)
+  if (!isPoSubmitted.value) {
+    const incompleteLines = po.value.lines.filter((line) => {
+      const hasContent =
+        (line.item_code && line.item_code.trim() !== '') ||
+        (line.description && line.description.trim() !== '')
+      return hasContent && !isValidLine(line)
+    })
 
-  if (incompleteLines.length > 0) {
-    const missingPrices = incompleteLines.filter(
-      (line) => (!line.unit_cost || Number(line.unit_cost) <= 0) && !line.price_tbc,
-    )
-
-    if (missingPrices.length > 0) {
-      toast.error(
-        `${missingPrices.length} line(s) missing price information. Please set unit cost or mark as TBC.`,
+    if (incompleteLines.length > 0) {
+      const missingPrices = incompleteLines.filter(
+        (line) => (!line.unit_cost || Number(line.unit_cost) <= 0) && !line.price_tbc,
       )
-      return
+
+      if (missingPrices.length > 0) {
+        toast.error(
+          `${missingPrices.length} line(s) missing price information. Please set unit cost or mark as TBC.`,
+        )
+        return
+      }
     }
   }
 
@@ -567,16 +519,76 @@ async function saveLines() {
   }
 
   debugLog('💾 Saving lines...', {
+    isSubmitted: isPoSubmitted.value,
     validLines: validLines.length,
     changedLines: changedLines.length,
     toDelete: linesToDelete.value.length,
+    changedLinesDetails: changedLines.map((l) => ({ id: l.id, job_id: l.job_id })),
+  })
+
+  // Transform lines to match API schema requirements
+  const transformedLines = changedLines.map((line) => {
+    // If PO is submitted, only send job_id and id (minimal update)
+    if (isPoSubmitted.value) {
+      const transformed = {
+        id: line.id, // Explicitly preserve the ID
+        job_id: line.job_id && line.job_id.trim() !== '' ? line.job_id : null,
+      }
+
+      debugLog('🔧 Transformed line (submitted PO - job only):', {
+        hasId: !!transformed.id,
+        id: transformed.id,
+        job_id: transformed.job_id,
+      })
+
+      return transformed
+    }
+
+    // For draft/other statuses, send all fields
+    const transformed = {
+      id: line.id, // Explicitly preserve the ID
+      job_id: line.job_id && line.job_id.trim() !== '' ? line.job_id : null,
+      description: line.description,
+      quantity:
+        typeof line.quantity === 'number'
+          ? line.quantity.toFixed(2)
+          : String(line.quantity || '0.00'),
+      unit_cost:
+        line.unit_cost != null
+          ? typeof line.unit_cost === 'number'
+            ? line.unit_cost.toFixed(2)
+            : String(line.unit_cost)
+          : null,
+      price_tbc: line.price_tbc,
+      item_code: line.item_code || '',
+      metal_type: line.metal_type || '',
+      alloy: line.alloy || '',
+      specifics: line.specifics || '',
+      location: line.location || '',
+      dimensions: line.dimensions || '',
+    }
+
+    debugLog('🔧 Transformed line (full):', {
+      hasId: !!transformed.id,
+      id: transformed.id,
+      description: transformed.description?.substring(0, 20),
+      dimensions: transformed.dimensions,
+      hasAllFields: {
+        dimensions: 'dimensions' in transformed,
+        alloy: 'alloy' in transformed,
+        specifics: 'specifics' in transformed,
+        location: 'location' in transformed,
+      },
+    })
+
+    return transformed
   })
 
   try {
     const linesToDeleteBackup = [...linesToDelete.value]
 
     await store.patch(orderId, {
-      lines: changedLines,
+      lines: transformedLines,
       lines_to_delete: linesToDelete.value.length ? linesToDelete.value : undefined,
     })
 
@@ -608,27 +620,30 @@ async function syncWithXero() {
   }
 
   isSyncing.value = true
-  toast.loading('Syncing with Xero…', { id: 'po-sync-loading' })
+  toast.info('Syncing with Xero…', { id: 'po-sync-loading' })
 
   try {
-    const { data: res } = await axios.post<XeroSyncResponse>(
+    // TODO: Replace with Zodios endpoint when available in schema
+    // This endpoint is not yet in the generated schema
+    const { data } = await axios.post<XeroSyncResponse>(
       `/api/xero/create_purchase_order/${orderId}`,
     )
 
     switch (true) {
-      case res.success:
-        if (res.online_url) po.value.online_url = res.online_url
-        if (res.xero_id) po.value.xero_id = res.xero_id
+      case data.success:
+        if (data.online_url) po.value.online_url = data.online_url
+        if (data.xero_id) po.value.xero_id = data.xero_id
         toast.dismiss('po-sync-loading')
         toast.success('Synced with Xero successfully!')
         break
-      case res.is_incomplete_po:
+      case 'is_incomplete_po' in data &&
+        (data as XeroSyncResponse & { is_incomplete_po?: boolean }).is_incomplete_po:
         toast.dismiss('po-sync-loading')
-        toast.warning(res.error || 'Purchase order incomplete - missing required fields')
+        toast.warning(data.error || 'Purchase order incomplete - missing required fields')
         break
       default:
         toast.dismiss('po-sync-loading')
-        throw new Error(res.error || 'Unknown sync error')
+        throw new Error(data.error || 'Unknown sync error')
     }
   } catch (err: unknown) {
     toast.dismiss('po-sync-loading')
@@ -672,7 +687,7 @@ async function emailPurchaseOrder() {
     return
   }
   try {
-    toast.loading('Preparing email...', { id: 'po-email-loading' })
+    toast.info('Preparing email...', { id: 'po-email-loading' })
 
     const emailData = await store.emailPurchaseOrder(orderId)
 
@@ -695,8 +710,60 @@ async function emailPurchaseOrder() {
   }
 }
 
-function close() {
-  router.back()
+async function close() {
+  if (isPoDeleted.value) {
+    debugLog('🚪 Closing without save - PO is deleted')
+    router.push('/purchasing/po')
+    return
+  }
+
+  let hasAuthError = false
+
+  try {
+    debugLog('🚪 Closing PO form - triggering autosave...')
+
+    // Clear any pending debounce timers to force immediate save
+    if (debounceTimer) {
+      clearTimeout(debounceTimer)
+      debounceTimer = null
+      debugLog('⏰ Cleared pending autosave timer for immediate save')
+    }
+
+    // Always try to save lines (function will check for actual changes internally)
+    debugLog('💾 Saving line changes before close...')
+    await saveLines()
+
+    // Always try to save summary to ensure consistency
+    debugLog('💾 Saving summary changes before close...')
+    await saveSummary()
+
+    debugLog('✅ Autosave completed, navigating to PO list')
+    toast.success('Changes saved automatically')
+  } catch (error) {
+    debugLog('❌ Error during autosave on close:', error)
+
+    // Check if it's an authentication error
+    const isAuthError =
+      error?.response?.status === 401 ||
+      (typeof error === 'object' && error?.message?.includes('auth')) ||
+      (typeof error === 'string' && error.includes('auth'))
+
+    if (isAuthError) {
+      debugLog('🔒 Authentication error detected during save')
+      toast.error('Session expired. Please login again.')
+      hasAuthError = true
+      return
+    }
+
+    toast.error('Failed to save changes: ' + extractErrorMessage(error, 'Unknown error'))
+    // Still navigate to PO list even if save fails (non-auth errors)
+  } finally {
+    // Always navigate back to PO list unless there was an auth error
+    if (!hasAuthError) {
+      debugLog('🚪 Navigating to purchase orders list')
+      router.push('/purchasing/po')
+    }
+  }
 }
 
 const canSync = computed(() => {
@@ -709,6 +776,7 @@ const canSync = computed(() => {
 
 const isReloading = ref(false)
 const isDeletingLine = ref(false)
+const isEditingAdditionalFields = ref(false)
 
 onMounted(async () => {
   try {
@@ -720,12 +788,14 @@ onMounted(async () => {
   watch(
     () => po.value.lines,
     (newLines, oldLines) => {
-      if (isReloading.value || isDeletingLine.value) {
+      if (isReloading.value || isDeletingLine.value || isEditingAdditionalFields.value) {
         debugLog(
           '⏸️ Skipping autosave - reloading:',
           isReloading.value,
           'deleting:',
           isDeletingLine.value,
+          'editing additional fields:',
+          isEditingAdditionalFields.value,
         )
         return
       }

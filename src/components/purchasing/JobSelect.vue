@@ -54,9 +54,15 @@
           </div>
         </div>
 
+        <!-- Loading message -->
+        <div v-if="isLoading" class="px-3 py-2 text-gray-500 text-sm flex items-center gap-2">
+          <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
+          Jobs are loading, please wait
+        </div>
+
         <!-- No results message -->
         <div
-          v-if="filteredJobs.length === 0 && searchTerm.trim()"
+          v-if="!isLoading && filteredJobs.length === 0 && searchTerm.trim()"
           class="px-3 py-2 text-gray-500 text-sm"
         >
           No jobs found for "{{ searchTerm }}"
@@ -64,7 +70,7 @@
 
         <!-- No jobs available -->
         <div
-          v-if="filteredJobs.length === 0 && !searchTerm.trim()"
+          v-if="!isLoading && filteredJobs.length === 0 && !searchTerm.trim()"
           class="px-3 py-2 text-gray-500 text-sm"
         >
           No jobs available
@@ -97,6 +103,10 @@ const props = defineProps({
   errorMessage: {
     type: String,
     default: '',
+  },
+  isLoading: {
+    type: Boolean,
+    default: false,
   },
   disabled: {
     type: Boolean,

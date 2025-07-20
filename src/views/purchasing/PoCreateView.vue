@@ -7,7 +7,6 @@
         :po="po"
         :is-create-mode="true"
         @update:reference="po.reference = $event"
-        @update:order_date="po.order_date = $event"
         @update:expected_delivery="po.expected_delivery = $event"
         @update:status="po.status = $event"
         @update:supplier_id="po.supplier_id = $event"
@@ -16,8 +15,14 @@
       />
 
       <div class="flex justify-end gap-2">
-        <Button variant="secondary" @click="cancel">Cancel</Button>
-        <Button :disabled="saving" @click="save">Save</Button>
+        <Button variant="secondary" @click="cancel" :disabled="saving">Cancel</Button>
+        <Button :disabled="saving" @click="save">
+          <div v-if="saving" class="flex items-center gap-2">
+            <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            Creating PO...
+          </div>
+          <span v-else>Save</span>
+        </Button>
       </div>
     </div>
   </AppLayout>
@@ -32,19 +37,11 @@ import { useRouter } from 'vue-router'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrderStore'
 import { toast } from 'vue-sonner'
 
-type Status = 'draft' | 'submitted' | 'partially_received' | 'fully_received' | 'deleted'
+// Import types from generated API schemas
+import type { PurchaseOrderCreate } from '@/api/generated/api'
 
-interface PurchaseOrderForm {
-  po_number: string
-  supplier: string
-  supplier_name: string
-  supplier_has_xero_id: boolean
-  supplier_id: string | null
-  reference: string
-  order_date: string
-  expected_delivery: string
-  status: Status
-}
+// Use the generated type instead of local interface
+type PurchaseOrderForm = PurchaseOrderCreate
 
 const router = useRouter()
 const store = usePurchaseOrderStore()
@@ -57,7 +54,6 @@ const po = ref<PurchaseOrderForm>({
   supplier_has_xero_id: false,
   supplier_id: null,
   reference: '',
-  order_date: '',
   expected_delivery: '',
   status: 'draft',
 })
@@ -67,7 +63,6 @@ const save = async () => {
   try {
     const payload = {
       ...po.value,
-      order_date: po.value.order_date || null,
       expected_delivery: po.value.expected_delivery || null,
       supplier_id: po.value.supplier_id || null,
     }

@@ -1,227 +1,242 @@
-import api from '@/plugins/axios'
-import type { AxiosResponse } from 'axios'
-import type { z } from 'zod'
-import {
-  JobsApiResponseSchema,
-  StatusApiResponseSchema,
-  UpdateJobStatusRequestSchema,
-  ReorderJobRequestSchema,
-  AdvancedFiltersSchema,
-  AllJobsApiResponseSchema,
-} from '@/schemas/kanban.schemas'
-import type {
-  JobsApiResponse,
-  StatusApiResponse,
-  UpdateJobStatusRequest,
-  ReorderJobRequest,
-} from '@/schemas/kanban.schemas'
-import type { Job, AdvancedFilters } from '@/types'
-import { validate as validateUuid } from 'uuid'
-import { debugLog } from '@/utils/debug'
+import { api, schemas } from '../api/generated/api'
+import axios from '@/plugins/axios'
+import { z } from 'zod'
+import type { AdvancedFilters, JobStatusUpdate, JobReorderPayload } from '../api/local/schemas'
 
-interface BaseApiResponse {
-  success: boolean
-  error?: string
-}
+type KanbanJob = z.infer<typeof schemas.KanbanJob>
+type JobCreateRequest = z.infer<typeof schemas.JobCreateRequest>
+type JobDetailResponse = z.infer<typeof schemas.JobDetailResponse>
+type JobUpdateRequest = z.infer<typeof schemas.JobUpdateRequest>
+type JobFile = z.infer<typeof schemas.JobFile>
+type FetchAllJobsResponse = z.infer<typeof schemas.FetchAllJobsResponse>
+type FetchJobsResponse = z.infer<typeof schemas.FetchJobsResponse>
+type FetchJobsByColumnResponse = z.infer<typeof schemas.FetchJobsByColumnResponse>
+type FetchStatusValuesResponse = z.infer<typeof schemas.FetchStatusValuesResponse>
+type AdvancedSearchResponse = z.infer<typeof schemas.AdvancedSearchResponse>
+type CompanyDefaults = z.infer<typeof schemas.CompanyDefaults>
+type PaginatedCompleteJobList = z.infer<typeof schemas.PaginatedCompleteJobList>
 
-export class JobService {
-  private static instance: JobService
-  static getInstance(): JobService {
-    if (!JobService.instance) {
-      JobService.instance = new JobService()
-    }
-    return JobService.instance
-  }
+/**
+ * Clean job service using ONLY Zodios API
+ */
+export const jobService = {
+  // Job retrieval
+  getAllJobs(): Promise<FetchAllJobsResponse> {
+    return api.job_api_jobs_fetch_all_retrieve()
+  },
 
-  private handleApiResponse<T extends BaseApiResponse>(
-    response: AxiosResponse,
-    schema: z.ZodType<T>,
-  ): T {
-    if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE html>')) {
-      throw new Error('Authentication required - redirected to login page')
-    }
+  getJobsByStatus(status: string): Promise<FetchJobsResponse> {
+    return api.job_api_jobs_fetch_retrieve({ params: { status } })
+  },
 
-    if (response.status >= 400) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-    }
+  getJobsByColumn(columnId: string): Promise<FetchJobsByColumnResponse> {
+    return api.job_api_jobs_fetch_by_column_retrieve({ params: { column_id: columnId } })
+  },
 
+  getStatusChoices(): Promise<FetchStatusValuesResponse> {
+    return Promise.resolve({
+      success: true,
+      statuses: {
+        draft: 'Draft',
+        awaiting_approval: 'Awaiting Approval',
+        approved: 'Approved',
+        in_progress: 'In Progress',
+        unusual: 'Unusual',
+        recently_completed: 'Recently Completed',
+      },
+      tooltips: {
+        draft: 'Initial job creation - quote being prepared',
+        awaiting_approval: 'Quote submitted and waiting for customer approval',
+        approved: 'Quote approved and ready to start work',
+        in_progress: 'Work has started on this job',
+        unusual: 'Jobs requiring special attention or unusual circumstances',
+        recently_completed: 'Work has just finished on this job',
+      },
+    })
+    // return api.job_api_jobs_status_values_retrieve()
+  },
+
+  searchJobs(): Promise<AdvancedSearchResponse> {
+    return api.job_api_jobs_advanced_search_retrieve()
+  },
+
+  // Job CRUD
+  createJob(jobData: JobCreateRequest): Promise<Job> {
+    return api.job_rest_jobs_create(jobData)
+  },
+
+  getJob(jobId: string): Promise<JobDetailResponse> {
+    return api.job_rest_jobs_retrieve({ params: { job_id: jobId } })
+  },
+
+  deleteJob(jobId: string): Promise<{ success: boolean; error?: string; message?: string }> {
+    return api
+      .job_rest_jobs_destroy(undefined, { params: { job_id: jobId } })
+      .then((response) => ({
+        success: response.success,
+        message: response.message,
+      }))
+      .catch((error) => ({
+        success: false,
+        error: error.message || 'Failed to delete job',
+      }))
+  },
+
+  // Archive
+  getCompletedJobs(): Promise<PaginatedCompleteJobList> {
+    return api.job_api_job_completed_list()
+  },
+
+  archiveJobs(jobIds: string[]): Promise<{ message: string }> {
+    return api.job_api_job_completed_archive_create({ ids: jobIds })
+  },
+
+  // Files
+  listJobFiles(jobNumber: string): Promise<JobFile[]> {
+    const result = api.retrieveJobFilesApi_6({
+      params: { job_number: parseInt(jobNumber) },
+      queries: { format: 'json' },
+    })
+    return result.then((r) => (Array.isArray(r) ? r : [r]))
+  },
+
+  // PDF
+  async getWorkshopPdf(jobId: string): Promise<Blob> {
     try {
-      const validatedResponse = schema.parse(response.data)
-
-      if (validatedResponse.success === false) {
-        throw new Error(validatedResponse.error || 'API request failed')
-      }
-
-      return validatedResponse
+      const response = await axios.get(`/job/rest/jobs/${jobId}/workshop-pdf/`, {
+        responseType: 'blob',
+      })
+      return response.data
     } catch (error) {
-      if (error instanceof Error && error.message.includes('Expected object, received string')) {
-        throw new Error('Invalid response format - possibly not authenticated')
-      }
+      console.error('Error fetching workshop PDF:', error)
       throw error
     }
-  }
+  },
 
-  async getAllJobs(): Promise<{ activeJobs: Job[]; archivedJobs: Job[]; totalArchived: number }> {
-    try {
-      const response = await api.get('/job/api/jobs/fetch-all/')
-      const data = this.handleApiResponse(response, AllJobsApiResponseSchema)
+  // Settings
+  getCompanyDefaults(): Promise<CompanyDefaults> {
+    return api.api_company_defaults_retrieve()
+  },
 
-      return {
-        activeJobs: data.active_jobs.map((job) => ({ ...job, people: job.people ?? [] })),
-        archivedJobs: data.archived_jobs.map((job) => ({ ...job, people: job.people ?? [] })),
-        totalArchived: data.total_archived,
-      }
-    } catch (error) {
-      debugLog('Error fetching all jobs:', error)
-      throw new Error('Failed to load jobs')
-    }
-  }
+  // Quote
+  getQuoteStatus(jobId: string): Promise<{ status: string }> {
+    return api.job_rest_jobs_quote_status_retrieve({ params: { job_id: jobId } })
+  },
 
-  async getJobsByStatus(status: string, searchTerms?: string): Promise<JobsApiResponse> {
-    try {
-      const params = new URLSearchParams()
-      if (searchTerms) {
-        params.append('search', searchTerms)
-      }
-
-      const response = await api.get(`/job/api/jobs/fetch/${status}/?${params.toString()}`)
-
-      const apiResult = this.handleApiResponse(response, JobsApiResponseSchema)
-      return {
-        ...apiResult,
-        jobs: apiResult.jobs.map((job) => ({ ...job, people: job.people ?? [] })),
-      }
-    } catch (error) {
-      debugLog('Error fetching jobs by status:', error)
-      throw new Error('Failed to load jobs by status')
-    }
-  }
-
-  async getStatusChoices(): Promise<StatusApiResponse> {
-    try {
-      const response = await api.get('/job/api/jobs/status-values/')
-      return this.handleApiResponse(response, StatusApiResponseSchema)
-    } catch (error) {
-      debugLog('Error fetching status choices:', error)
-      throw new Error('Failed to load status choices')
-    }
-  }
-
-  async updateJobStatus(jobId: string, status: string): Promise<void> {
-    try {
-      debugLog(`🔄 Updating job ${jobId} to status ${status}`)
-      const requestData: UpdateJobStatusRequest = UpdateJobStatusRequestSchema.parse({ status })
-
-      const response = await api.post(`/job/api/jobs/${jobId}/update-status/`, requestData)
-      debugLog(`✅ Job status update successful`, response.data)
-
-      const { useJobsStore } = await import('@/stores/jobs')
-      const jobsStore = useJobsStore()
-      jobsStore.updateJobStatus(jobId, status)
-    } catch (error) {
-      debugLog('❌ Error updating job status:', error)
-      if (error instanceof Error) {
-        debugLog('Error details:', {
-          message: error.message,
-          stack: error.stack,
-        })
-      }
-      throw new Error('Failed to update job status')
-    }
-  }
-
-  async reorderJob(
-    jobId: string,
-    beforeId?: string,
-    afterId?: string,
-    status?: string,
-  ): Promise<void> {
-    try {
-      if (!validateUuid(jobId)) {
-        throw new Error(`Invalid jobId: ${jobId}`)
-      }
-      if (beforeId && !validateUuid(beforeId)) {
-        throw new Error(`Invalid beforeId: ${beforeId}`)
-      }
-      if (afterId && !validateUuid(afterId)) {
-        throw new Error(`Invalid afterId: ${afterId}`)
-      }
-      const requestData: ReorderJobRequest = ReorderJobRequestSchema.parse({
-        before_id: beforeId || null,
-        after_id: afterId || null,
-        status,
-      })
-
-      await api.post(`/job/api/jobs/${jobId}/reorder/`, requestData)
-
-      if (status) {
-        const { useJobsStore } = await import('@/stores/jobs')
-        const jobsStore = useJobsStore()
-        jobsStore.updateJobStatus(jobId, status)
-      }
-    } catch (error) {
-      debugLog('Error reordering job:', error)
-      throw new Error('Failed to reorder job')
-    }
-  }
-
-  async performAdvancedSearch(filters: AdvancedFilters): Promise<JobsApiResponse> {
-    try {
-      const validatedFilters = AdvancedFiltersSchema.parse(filters)
-      const params = new URLSearchParams()
-
-      Object.entries(validatedFilters).forEach(([key, value]) => {
-        if (Array.isArray(value)) {
-          value.forEach((v) => v && params.append(key, v))
-        } else if (value) {
-          params.append(key, value as string)
-        }
-      })
-
-      const response = await api.get(`/job/api/jobs/advanced-search/?${params.toString()}`)
-      const apiResult = this.handleApiResponse(response, JobsApiResponseSchema)
-      return {
-        ...apiResult,
-        jobs: apiResult.jobs.map((job) => ({ ...job, people: job.people ?? [] })),
-      }
-    } catch (error) {
-      debugLog('Error performing advanced search:', error)
-      throw new Error('Failed to perform advanced search')
-    }
-  }
-
-  async getJobsByKanbanColumn(columnId: string, searchTerms?: string): Promise<JobsApiResponse> {
-    try {
-      const params = new URLSearchParams()
-      if (searchTerms) {
-        params.append('search', searchTerms)
-      }
-
-      const response = await api.get(
-        `/job/api/jobs/fetch-by-column/${columnId}/?${params.toString()}`,
-      )
-      const apiResult = this.handleApiResponse(response, JobsApiResponseSchema)
-      return {
-        ...apiResult,
-        jobs: apiResult.jobs.map((job) => ({ ...job, people: job.people ?? [] })),
-      }
-    } catch (error) {
-      debugLog('Error fetching jobs by kanban column:', error)
-      throw new Error('Failed to load jobs by kanban column')
-    }
-  }
-
-  searchJobs(jobs: Job[], query: string): Job[] {
-    if (!query.trim()) return []
+  // Local search
+  searchJobsLocal(jobs: KanbanJob[], query: string): KanbanJob[] {
+    if (!query) return jobs
 
     const searchTerm = query.toLowerCase()
     return jobs.filter(
       (job) =>
-        job.name.toLowerCase().includes(searchTerm) ||
-        (job.description && job.description.toLowerCase().includes(searchTerm)) ||
-        job.client_name.toLowerCase().includes(searchTerm) ||
-        (job.contact_person && job.contact_person.toLowerCase().includes(searchTerm)) ||
-        job.job_number.toString().includes(searchTerm),
+        job.name?.toLowerCase().includes(searchTerm) ||
+        job.client_name?.toLowerCase().includes(searchTerm) ||
+        job.job_number?.toLowerCase().includes(searchTerm) ||
+        job.description?.toLowerCase().includes(searchTerm),
     )
-  }
+  },
+
+  // Advanced search with filters
+  async performAdvancedSearch(filters: AdvancedFilters): Promise<AdvancedSearchResponse> {
+    const response = await api.job_api_jobs_advanced_search_retrieve({
+      queries: {
+        job_number: filters.job_number || undefined,
+        name: filters.name || undefined,
+        description: filters.description || undefined,
+        client_name: filters.client_name || undefined,
+        contact_person: filters.contact_person || undefined,
+        created_by: filters.created_by || undefined,
+        status: filters.status.length > 0 ? filters.status : undefined,
+        created_after: filters.created_after || undefined,
+        created_before: filters.created_before || undefined,
+        paid: filters.paid || undefined,
+        xero_invoice_params: filters.xero_invoice_params || undefined, // Xero Invoice Number or ID
+      },
+    })
+    return response
+  },
+
+  // Update job status
+  updateJobStatus(jobId: string, newStatus: string): Promise<JobStatusUpdate> {
+    return api.job_api_jobs_update_status_create(
+      { status: newStatus },
+      { params: { job_id: jobId } },
+    )
+  },
+
+  // Update job data
+  async updateJob(
+    jobId: string,
+    jobData: JobUpdateRequest,
+  ): Promise<{ success: boolean; data?: JobDetailResponse; error?: string }> {
+    try {
+      const response = await api.job_rest_jobs_update(jobData, { params: { job_id: jobId } })
+      return {
+        success: response.success || true,
+        data: response.data || response,
+      }
+    } catch (error) {
+      console.error('Error updating job:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error updating job',
+      }
+    }
+  },
+
+  // Reorder job
+  reorderJob(jobId: string, beforeId?: string, afterId?: string, status?: string): Promise<Job> {
+    const payload: JobReorderPayload = {}
+    if (beforeId) payload.before_id = beforeId
+    if (afterId) payload.after_id = afterId
+    if (status) payload.status = status
+
+    return api.job_api_jobs_reorder_create(payload, { params: { job_id: jobId } })
+  },
+
+  // Add job event
+  async addJobEvent(jobId: string, description: string): Promise<unknown> {
+    try {
+      const response = await api.job_rest_jobs_events_create(
+        { description },
+        { params: { job_id: jobId } },
+      )
+
+      return response
+    } catch (error) {
+      console.error('Error adding job event:', error)
+      throw error
+    }
+  },
+
+  // Upload job files
+  async uploadJobFiles(jobNumber: string, files: File[]): Promise<unknown> {
+    try {
+      const formData = new FormData()
+      files.forEach((file) => {
+        formData.append('files', file)
+      })
+
+      const response = await axios.post(`/job/api/job-files/${jobNumber}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        params: {
+          format: 'json',
+        },
+      })
+
+      return response.data
+    } catch (error) {
+      console.error('Error uploading job files:', error)
+      if (error.response) {
+        console.error('Response data:', error.response.data)
+        console.error('Response status:', error.response.status)
+      }
+      throw error
+    }
+  },
 }
+
+export default jobService

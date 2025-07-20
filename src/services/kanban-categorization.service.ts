@@ -1,221 +1,176 @@
-export interface KanbanSubCategory {
-  statusKey: string
-  badgeLabel: string
-  badgeColorClass: string
-}
+/**
+ * Kanban Categorization Service
+ *
+ * Service layer for managing simplified kanban structure per Cindy's requirements:
+ * - 6 main columns: Draft, Awaiting Approval, Approved, In Progress, Unusual, Recently Completed
+ * - 1:1 status mapping (no sub-columns per Cindy's feedback)
+ * - Hidden statuses: special, archived (maintained but not shown on kanban)
+ * - Legacy status mapping based on Corrin's table:
+ *   - Quoting -> Draft
+ *   - Accepted Quote -> Approved
+ *   - Awaiting Materials/Staff/Site -> Unusual
+ *   - On Hold -> Unusual
+ *   - Completed -> Recently Completed
+ *   - Rejected -> Recently Completed (with rejected_flag=True)
+ *   - Special -> Not visible on kanban without advanced search
+ *   - Archived -> Archived (unchanged)
+ */
 
-export interface KanbanColumn {
-  columnId: string
-  columnTitle: string
-  subCategories: KanbanSubCategory[]
-  colorTheme: string
+import { z } from 'zod'
+import { schemas } from '../api/generated/api'
+import type { KanbanColumn } from '../api/local/schemas'
+
+// Use generated Job type from Zodios API
+type Job = z.infer<typeof schemas.Job>
+
+// Job-like interface for status checking (supports both Job and partial job objects)
+interface JobWithStatus {
+  status?: string
+  status_key?: string
 }
 
 export class KanbanCategorizationService {
+  // Simplified column structure - no more sub-categories, per Cindy's requirements
   private static readonly COLUMN_STRUCTURE: Record<string, KanbanColumn> = {
     draft: {
       columnId: 'draft',
       columnTitle: 'Draft',
-      subCategories: [
-        { statusKey: 'quoting', badgeLabel: 'Quoting', badgeColorClass: 'bg-yellow-500' },
-      ],
+      statusKey: 'draft',
       colorTheme: 'yellow',
+      badgeColorClass: 'bg-yellow-500',
     },
     awaiting_approval: {
       columnId: 'awaiting_approval',
       columnTitle: 'Awaiting Approval',
-      subCategories: [
-        {
-          statusKey: 'accepted_quote',
-          badgeLabel: 'Quote Accepted',
-          badgeColorClass: 'bg-green-500',
-        },
-      ],
-      colorTheme: 'green',
-    },
-    on_hold: {
-      columnId: 'on_hold',
-      columnTitle: 'On Hold',
-      subCategories: [
-        {
-          statusKey: 'awaiting_materials',
-          badgeLabel: 'Awaiting Materials',
-          badgeColorClass: 'bg-orange-500',
-        },
-        {
-          statusKey: 'awaiting_staff',
-          badgeLabel: 'Awaiting Staff',
-          badgeColorClass: 'bg-purple-500',
-        },
-        {
-          statusKey: 'awaiting_site_availability',
-          badgeLabel: 'Awaiting Site',
-          badgeColorClass: 'bg-indigo-500',
-        },
-        { statusKey: 'on_hold', badgeLabel: 'Other Hold', badgeColorClass: 'bg-gray-500' },
-      ],
+      statusKey: 'awaiting_approval',
       colorTheme: 'orange',
+      badgeColorClass: 'bg-orange-500',
+    },
+    approved: {
+      columnId: 'approved',
+      columnTitle: 'Approved',
+      statusKey: 'approved',
+      colorTheme: 'green',
+      badgeColorClass: 'bg-green-500',
     },
     in_progress: {
       columnId: 'in_progress',
       columnTitle: 'In Progress',
-      subCategories: [
-        { statusKey: 'in_progress', badgeLabel: 'Active Work', badgeColorClass: 'bg-blue-500' },
-      ],
+      statusKey: 'in_progress',
       colorTheme: 'blue',
+      badgeColorClass: 'bg-blue-500',
+    },
+    unusual: {
+      columnId: 'unusual',
+      columnTitle: 'Unusual',
+      statusKey: 'unusual',
+      colorTheme: 'purple',
+      badgeColorClass: 'bg-purple-500',
     },
     recently_completed: {
       columnId: 'recently_completed',
       columnTitle: 'Recently Completed',
-      subCategories: [
-        {
-          statusKey: 'recently_completed',
-          badgeLabel: 'Just Finished',
-          badgeColorClass: 'bg-emerald-500',
-        },
-      ],
+      statusKey: 'recently_completed',
       colorTheme: 'emerald',
-    },
-    archived: {
-      columnId: 'archived',
-      columnTitle: 'Archived',
-      subCategories: [
-        { statusKey: 'completed', badgeLabel: 'Completed & Paid', badgeColorClass: 'bg-slate-500' },
-        { statusKey: 'rejected', badgeLabel: 'Rejected', badgeColorClass: 'bg-red-500' },
-      ],
-      colorTheme: 'slate',
+      badgeColorClass: 'bg-emerald-500',
     },
   }
 
+  // Status to column mapping for quick lookup - based on Corrin's mapping table
   private static readonly STATUS_TO_COLUMN_MAP: Record<string, string> = {
-    quoting: 'draft',
-    accepted_quote: 'awaiting_approval',
-    awaiting_materials: 'on_hold',
-    awaiting_staff: 'on_hold',
-    awaiting_site_availability: 'on_hold',
+    // Main kanban statuses - 1:1 mapping (column = status)
+    draft: 'draft',
+    awaiting_approval: 'awaiting_approval',
+    approved: 'approved',
     in_progress: 'in_progress',
+    unusual: 'unusual',
     recently_completed: 'recently_completed',
-    completed: 'archived',
-    rejected: 'archived',
-    archived: 'archived',
-    on_hold: 'on_hold',
+    // Legacy status mappings based on Corrin's table
+    quoting: 'draft', // Quoting -> Draft
+    accepted_quote: 'approved', // Accepted Quote -> Approved
+    awaiting_materials: 'unusual', // Awaiting Materials -> Unusual
+    awaiting_staff: 'unusual', // Awaiting Staff -> Unusual
+    awaiting_site_availability: 'unusual', // Awaiting Site Availability -> Unusual
+    on_hold: 'unusual', // On Hold -> Unusual
+    completed: 'recently_completed', // Completed -> Recently Completed
+    rejected: 'recently_completed', // Rejected -> Recently Completed (with rejected_flag)
+    // Hidden statuses (not shown on kanban): special, archived
   }
 
   static getColumnForStatus(status: string): string {
-    if (!status) {
-      return 'draft'
-    }
-
     return this.STATUS_TO_COLUMN_MAP[status] || 'draft'
   }
 
-  static getSubCategoryForStatus(status: string): KanbanSubCategory | null {
-    if (!status) {
-      return null
-    }
+  static getColumnInfo(columnId: string): KanbanColumn | null {
+    return this.COLUMN_STRUCTURE[columnId] || null
+  }
 
+  static getColumnInfoForStatus(status: string): KanbanColumn | null {
     const columnId = this.getColumnForStatus(status)
-    const column = this.COLUMN_STRUCTURE[columnId]
-
-    if (!column) {
-      return null
-    }
-
-    return column.subCategories.find((subCat) => subCat.statusKey === status) || null
+    return this.getColumnInfo(columnId)
   }
 
   static getAllColumns(): KanbanColumn[] {
     return [
       this.COLUMN_STRUCTURE.draft,
       this.COLUMN_STRUCTURE.awaiting_approval,
-      this.COLUMN_STRUCTURE.on_hold,
+      this.COLUMN_STRUCTURE.approved,
       this.COLUMN_STRUCTURE.in_progress,
+      this.COLUMN_STRUCTURE.unusual,
       this.COLUMN_STRUCTURE.recently_completed,
-      this.COLUMN_STRUCTURE.archived,
     ]
   }
 
-  static getColumnById(columnId: string): KanbanColumn | null {
-    if (!columnId) {
-      return null
-    }
-
-    return this.COLUMN_STRUCTURE[columnId] || null
-  }
-
-  static filterKanbanJobs<T extends { status_key?: string }>(jobs: T[]): T[] {
-    if (!jobs) {
+  static getJobsForColumn(
+    jobs: (Job | JobWithStatus)[],
+    columnId: string,
+  ): (Job | JobWithStatus)[] {
+    if (!this.COLUMN_STRUCTURE[columnId]) {
       return []
     }
 
-    return jobs.filter((job) => job.status_key !== 'special')
-  }
-
-  static getJobsForColumn<T extends { status_key?: string }>(jobs: T[], columnId: string): T[] {
-    if (!jobs || !columnId) {
-      return []
-    }
-
-    const column = this.getColumnById(columnId)
-    if (!column) {
-      return []
-    }
-
-    const validStatuses = new Set(column.subCategories.map((subCat) => subCat.statusKey))
-
-    const filteredJobs = this.filterKanbanJobs(jobs)
-    return filteredJobs.filter((job) => job.status_key && validStatuses.has(job.status_key))
+    const column = this.COLUMN_STRUCTURE[columnId]
+    // With simplified structure, only jobs with exact status match belong to column
+    return jobs.filter(
+      (job) => job.status === column.statusKey || job.status_key === column.statusKey,
+    )
   }
 
   static getBadgeInfo(status: string): { label: string; colorClass: string } {
-    if (!status) {
+    const columnInfo = this.getColumnInfoForStatus(status)
+
+    if (columnInfo) {
       return {
-        label: 'Unknown',
-        colorClass: 'bg-gray-400',
+        label: columnInfo.columnTitle,
+        colorClass: columnInfo.badgeColorClass,
       }
     }
 
-    const subCategory = this.getSubCategoryForStatus(status)
-
-    if (subCategory) {
-      return {
-        label: subCategory.badgeLabel,
-        colorClass: subCategory.badgeColorClass,
-      }
-    }
-
+    // Fallback for unknown statuses
     return {
-      label: status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
+      label: status.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
       colorClass: 'bg-gray-400',
     }
   }
 
-  static getStatusesByColumn(): Record<string, string[]> {
-    const result: Record<string, string[]> = {}
+  static isStatusHiddenFromKanban(status: string): boolean {
+    const hiddenStatuses = new Set(['special', 'rejected', 'archived'])
+    return hiddenStatuses.has(status)
+  }
 
-    for (const column of this.getAllColumns()) {
-      result[column.columnId] = column.subCategories.map((subCat) => subCat.statusKey)
-    }
-
-    return result
+  static getVisibleJobsForKanban(jobs: (Job | JobWithStatus)[]): (Job | JobWithStatus)[] {
+    return jobs.filter(
+      (job) => !this.isStatusHiddenFromKanban((job.status || job.status_key || '') as string),
+    )
   }
 
   static getDefaultStatusForColumn(columnId: string): string {
-    switch (columnId) {
-      case 'draft':
-        return 'quoting'
-      case 'awaiting_approval':
-        return 'accepted_quote'
-      case 'on_hold':
-        return 'on_hold'
-      case 'in_progress':
-        return 'in_progress'
-      case 'recently_completed':
-        return 'recently_completed'
-      case 'archived':
-        return 'archived'
-      default:
-        return columnId
-    }
+    const column = this.getColumnInfo(columnId)
+    return column ? column.statusKey : 'draft'
+  }
+
+  static getStatusesForColumn(columnId: string): string[] {
+    const column = this.getColumnInfo(columnId)
+    return column ? [column.statusKey] : []
   }
 }

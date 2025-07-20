@@ -1,14 +1,9 @@
-import api from './api'
+import { api, schemas } from '@/api/generated/api'
 import { debugLog } from '@/utils/debug'
+import { z } from 'zod'
 
-export interface AIProvider {
-  id: number
-  name: string
-  provider_type: 'Claude' | 'Gemini' | 'Mistral'
-  model_name: string
-  api_key?: string
-  default: boolean
-}
+type AIProvider = z.infer<typeof schemas.AIProvider>
+type AIProviderCreateUpdate = z.infer<typeof schemas.AIProviderCreateUpdate>
 
 export class AIProviderService {
   private static instance: AIProviderService
@@ -24,34 +19,30 @@ export class AIProviderService {
 
   async getProviders(): Promise<AIProvider[]> {
     try {
-      const response = await api.get<{ data: AIProvider[] }>('/api/workflow/ai-providers/')
-      return response.data.data
+      return await api.api_workflow_ai_providers_list()
     } catch (error) {
       debugLog('Failed to fetch AI providers:', error)
       throw error
     }
   }
 
-  async createProvider(providerData: Omit<AIProvider, 'id'>): Promise<AIProvider> {
+  async createProvider(providerData: AIProviderCreateUpdate): Promise<AIProvider> {
     try {
-      const response = await api.post<{ data: AIProvider }>(
-        '/api/workflow/ai-providers/',
-        providerData,
-      )
-      return response.data.data
+      return await api.api_workflow_ai_providers_create(providerData)
     } catch (error) {
       debugLog('Failed to create AI provider:', error)
       throw error
     }
   }
 
-  async updateProvider(id: number, providerData: Partial<AIProvider>): Promise<AIProvider> {
+  async updateProvider(
+    id: number,
+    providerData: Partial<AIProviderCreateUpdate>,
+  ): Promise<AIProvider> {
     try {
-      const response = await api.patch<{ data: AIProvider }>(
-        `/api/workflow/ai-providers/${id}/`,
-        providerData,
-      )
-      return response.data.data
+      return await api.api_workflow_ai_providers_partial_update(providerData, {
+        params: { id: id.toString() },
+      })
     } catch (error) {
       debugLog(`Failed to update AI provider ${id}:`, error)
       throw error
@@ -60,19 +51,27 @@ export class AIProviderService {
 
   async deleteProvider(id: number): Promise<void> {
     try {
-      await api.delete(`/api/workflow/ai-providers/${id}/`)
+      await api.api_workflow_ai_providers_destroy(undefined, { params: { id: id.toString() } })
     } catch (error) {
       debugLog(`Failed to delete AI provider ${id}:`, error)
       throw error
     }
   }
 
-  async setDefaultProvider(id: number): Promise<AIProvider> {
+  async getProvider(id: number): Promise<AIProvider> {
     try {
-      const response = await api.post<{ data: AIProvider }>(
-        `/api/workflow/ai-providers/${id}/set_default/`,
-      )
-      return response.data.data
+      return await api.api_workflow_ai_providers_retrieve({ params: { id: id.toString() } })
+    } catch (error) {
+      debugLog(`Failed to get AI provider ${id}:`, error)
+      throw error
+    }
+  }
+
+  async setDefaultProvider(id: number, providerData: AIProvider): Promise<AIProvider> {
+    try {
+      return await api.api_workflow_ai_providers_set_default_create(providerData, {
+        params: { id: id.toString() },
+      })
     } catch (error) {
       debugLog(`Failed to set default AI provider ${id}:`, error)
       throw error

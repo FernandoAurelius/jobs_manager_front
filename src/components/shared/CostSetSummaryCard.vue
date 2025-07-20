@@ -4,9 +4,9 @@
   >
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-lg font-semibold text-gray-900">{{ title }}</h3>
-      <div v-if="summary && summary.rev !== undefined" class="text-right text-sm text-gray-600">
-        <div class="font-medium">Rev #{{ revision }}</div>
-        <div>{{ formatDate(summary.created) }}</div>
+      <div v-if="typedSummary && revision !== undefined" class="text-right text-sm text-gray-600">
+        <div class="font-medium">Snapshot #{{ revision }}</div>
+        <div v-if="typedSummary.created">{{ formatDate(typedSummary.created) }}</div>
       </div>
     </div>
     <div v-if="isLoading" class="flex-1 flex items-center justify-center">
@@ -26,7 +26,7 @@
         ></path>
       </svg>
     </div>
-    <div v-else-if="summary" class="flex-1 flex flex-col">
+    <div v-else-if="typedSummary" class="flex-1 flex flex-col">
       <div class="flex-1 grid grid-cols-3 gap-4">
         <div class="space-y-3">
           <h4 class="text-sm font-medium text-gray-900 border-b border-gray-200 pb-2">Costs</h4>
@@ -52,7 +52,7 @@
             <div class="flex flex-col pt-2 border-t border-gray-200">
               <span class="text-xs text-gray-500">Total Cost</span>
               <span class="text-xl font-bold text-red-600"
-                >${{ formatCurrency(summary.cost) }}</span
+                >${{ formatCurrency(typedSummary.cost) }}</span
               >
             </div>
           </div>
@@ -81,7 +81,7 @@
             <div class="flex flex-col pt-2 border-t border-gray-200">
               <span class="text-xs text-gray-500">Total Revenue</span>
               <span class="text-xl font-bold text-green-600"
-                >${{ formatCurrency(summary.rev) }}</span
+                >${{ formatCurrency(typedSummary.rev) }}</span
               >
             </div>
           </div>
@@ -102,7 +102,7 @@
             <div class="flex flex-col">
               <span class="text-xs text-gray-500">Total Hours</span>
               <span class="text-lg font-semibold text-blue-600"
-                >{{ formatNumber(summary.hours) }} hrs</span
+                >{{ formatNumber(typedSummary.hours) }} hrs</span
               >
             </div>
           </div>
@@ -121,74 +121,134 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { FileX } from 'lucide-vue-next'
+import { schemas } from '../../api/generated/api'
+import { z } from 'zod'
 
-interface CostLineSummary {
-  cost: number
-  rev: number
-  hours: number
-  created?: string
-  [key: string]: unknown
-}
-
-interface CostLine {
-  kind: 'time' | 'material' | string
-  quantity: number
-  unit_cost: number
-  unit_rev: number
-}
+type CostLine = z.infer<typeof schemas.CostLine>
+type CostSet = z.infer<typeof schemas.CostSet>
 
 const props = defineProps<{
   title?: string
-  summary?: CostLineSummary | null
+  summary?: CostSet['summary'] | null
   costLines?: CostLine[]
   isLoading?: boolean
   revision?: number
 }>()
 
+const typedSummary = computed(() => {
+  console.log('[CostSetSummaryCard] typedSummary computing with:', {
+    summary: props.summary,
+    summaryType: typeof props.summary,
+    isLoading: props.isLoading,
+  })
+
+  if (!props.summary || typeof props.summary !== 'object') {
+    console.log('[CostSetSummaryCard] No summary or not object, returning null')
+    return null
+  }
+
+  const summary = props.summary as Record<string, unknown>
+  console.log('[CostSetSummaryCard] Summary object keys:', Object.keys(summary))
+
+  // Type guard to check if summary has the expected properties
+  if (
+    typeof summary.cost === 'number' &&
+    typeof summary.rev === 'number' &&
+    typeof summary.hours === 'number'
+  ) {
+    const result = summary as {
+      cost: number
+      rev: number
+      hours: number
+      created?: string
+    }
+    console.log('[CostSetSummaryCard] Valid summary found:', result)
+    return result
+  }
+
+  console.log('[CostSetSummaryCard] Summary does not have expected number properties:', {
+    cost: summary.cost,
+    costType: typeof summary.cost,
+    rev: summary.rev,
+    revType: typeof summary.rev,
+    hours: summary.hours,
+    hoursType: typeof summary.hours,
+  })
+  return null
+})
+
 const profitMargin = computed(() => {
-  if (!props.summary?.rev || props.summary.rev === 0) return 0
-  return ((props.summary.rev - props.summary.cost) / props.summary.rev) * 100
+  if (!typedSummary.value?.rev || typedSummary.value.rev === 0) return 0
+  return ((typedSummary.value.rev - typedSummary.value.cost) / typedSummary.value.rev) * 100
 })
 
 const breakdown = computed(() => {
-  if (!props.costLines) {
+  console.log('[CostSetSummaryCard] breakdown computing with costLines:', props.costLines)
+
+  if (!props.costLines || !Array.isArray(props.costLines)) {
+    console.log('[CostSetSummaryCard] No costLines or not array, returning empty breakdown')
     return {
       labour: { count: 0, cost: 0, revenue: 0 },
       material: { count: 0, cost: 0, revenue: 0 },
       other: { count: 0, cost: 0, revenue: 0 },
     }
   }
+
+  const parseNumber = (value: string | number | undefined): number => {
+    return typeof value === 'string' ? parseFloat(value) || 0 : value || 0
+  }
+
+  console.log('[CostSetSummaryCard] Processing costLines count:', props.costLines.length)
+
   const labour = props.costLines
     .filter((line) => line.kind === 'time')
     .reduce(
-      (acc, line) => ({
-        count: acc.count + 1,
-        cost: acc.cost + line.quantity * line.unit_cost,
-        revenue: acc.revenue + line.quantity * line.unit_rev,
-      }),
+      (acc, line) => {
+        const quantity = parseNumber(line.quantity)
+        const unitCost = parseNumber(line.unit_cost)
+        const unitRev = parseNumber(line.unit_rev)
+        return {
+          count: acc.count + 1,
+          cost: acc.cost + quantity * unitCost,
+          revenue: acc.revenue + quantity * unitRev,
+        }
+      },
       { count: 0, cost: 0, revenue: 0 },
     )
   const material = props.costLines
     .filter((line) => line.kind === 'material')
     .reduce(
-      (acc, line) => ({
-        count: acc.count + 1,
-        cost: acc.cost + line.quantity * line.unit_cost,
-        revenue: acc.revenue + line.quantity * line.unit_rev,
-      }),
+      (acc, line) => {
+        const quantity = parseNumber(line.quantity)
+        const unitCost = parseNumber(line.unit_cost)
+        const unitRev = parseNumber(line.unit_rev)
+        return {
+          count: acc.count + 1,
+          cost: acc.cost + quantity * unitCost,
+          revenue: acc.revenue + quantity * unitRev,
+        }
+      },
       { count: 0, cost: 0, revenue: 0 },
     )
   const other = props.costLines
     .filter((line) => line.kind !== 'time' && line.kind !== 'material')
     .reduce(
-      (acc, line) => ({
-        count: acc.count + 1,
-        cost: acc.cost + line.quantity * line.unit_cost,
-        revenue: acc.revenue + line.quantity * line.unit_rev,
-      }),
+      (acc, line) => {
+        const quantity = parseNumber(line.quantity)
+        const unitCost = parseNumber(line.unit_cost)
+        const unitRev = parseNumber(line.unit_rev)
+        return {
+          count: acc.count + 1,
+          cost: acc.cost + quantity * unitCost,
+          revenue: acc.revenue + quantity * unitRev,
+        }
+      },
       { count: 0, cost: 0, revenue: 0 },
     )
-  return { labour, material, other }
+
+  const result = { labour, material, other }
+  console.log('[CostSetSummaryCard] breakdown result:', result)
+  return result
 })
 
 function formatNumber(value: number): string {

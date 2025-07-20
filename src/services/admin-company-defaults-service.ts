@@ -1,32 +1,17 @@
-import axios from 'axios'
+import { api, schemas } from '../api/generated/api'
+import type { z } from 'zod'
 
-export interface AIProvider {
-  id?: string
-  name: string
-  provider_type: string
-  model_name: string
-  api_key: string
-  default: boolean
-}
-
-export interface CompanyDefaults {
-  company_name: string
-  charge_out_rate: number
-  wage_rate: number
-  time_markup: number
-  materials_markup: number
-  starting_job_number: number
-  po_prefix: string
-  shop_client_name?: string
-  ai_providers?: AIProvider[]
-}
+// Generate TypeScript types from Zod schemas
+export type CompanyDefaults = z.infer<typeof schemas.CompanyDefaults>
+export type PatchedCompanyDefaults = z.infer<typeof schemas.PatchedCompanyDefaults>
+export type AIProvider = z.infer<typeof schemas.AIProvider>
 
 export async function getCompanyDefaults(): Promise<CompanyDefaults> {
-  const { data } = await axios.get('/api/company-defaults/')
-  return data
+  return await api.api_company_defaults_retrieve()
 }
 
-export async function updateCompanyDefaults(payload: CompanyDefaults): Promise<CompanyDefaults> {
-  const { data } = await axios.put('/api/company-defaults/', payload)
-  return data
+export async function updateCompanyDefaults(
+  payload: Partial<PatchedCompanyDefaults>,
+): Promise<CompanyDefaults> {
+  return await api.api_company_defaults_partial_update({ body: payload })
 }

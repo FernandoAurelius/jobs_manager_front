@@ -215,26 +215,29 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '@/utils/debug'
-
 import { ref, computed, watch } from 'vue'
 import ClientLookup from '@/components/ClientLookup.vue'
 import ContactSelectionModal from '@/components/ContactSelectionModal.vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import { useContactManagement } from '@/composables/useContactManagement'
-import { jobRestService, type JobData } from '@/services/job-rest.service'
+import { api, schemas } from '@/api/generated/api'
+import { z } from 'zod'
 import type { Client, ClientContact } from '@/composables/useClientLookup'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog'
 
+// Use generated types from Zodios API
+type JobDetailResponse = z.infer<typeof schemas.JobDetailResponse>
+type JobUpdateRequest = z.infer<typeof schemas.JobUpdateRequest>
+
 interface Props {
-  jobData: JobData | null
+  jobData: JobDetailResponse | null
   isOpen: boolean
 }
 
@@ -242,10 +245,10 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
-  'job-updated': [job: JobData]
+  'job-updated': [job: JobDetailResponse]
 }>()
 
-const localJobData = ref<Partial<JobData>>({})
+const localJobData = ref<Partial<JobDetailResponse>>({})
 const isLoading = ref(false)
 const isClientChanged = ref(false)
 const selectedClient = ref<Client | null>(null)
@@ -325,14 +328,12 @@ const handleClientChange = (clientId: string) => {
   if (clientId !== localJobData.value.client_id) {
     isClientChanged.value = true
     localJobData.value.client_id = clientId
-
     clearContact()
   }
 }
 
 const handleClientSelected = (client: Client | null) => {
   selectedClient.value = client
-
   if (client) {
     localJobData.value.client_name = client.name
   }
@@ -340,10 +341,9 @@ const handleClientSelected = (client: Client | null) => {
 
 const handleOpenContactModal = async () => {
   if (!currentClientId.value) {
-    debugLog('Cannot open contact modal without client')
+    console.log('Cannot open contact modal without client')
     return
   }
-
   await openContactModal(currentClientId.value, currentClientName.value)
 }
 
@@ -359,7 +359,6 @@ const handleContactSelected = (contact: ClientContact) => {
 
 const handleSaveContact = async () => {
   const success = await saveContact()
-
   if (success && selectedContact.value) {
     localJobData.value.contact_id = selectedContact.value.id
     localJobData.value.contact_name = selectedContact.value.name
@@ -379,74 +378,26 @@ const handleSave = async () => {
   isLoading.value = true
 
   try {
-    const updateData = {
-      name: localJobData.value.name?.trim(),
+    const updateData: JobUpdateRequest = {
+      name: localJobData.value.name?.trim() || '',
       client_id: currentClientId.value,
-      contact_id: localJobData.value.contact_id || undefined,
-      order_number: localJobData.value.order_number || '',
-      job_status: localJobData.value.job_status,
-      description: localJobData.value.description || '',
-      notes: localJobData.value.notes || '',
+      contact_id: localJobData.value.contact_id || null,
+      order_number: localJobData.value.order_number || null,
+      job_status: localJobData.value.job_status || 'draft',
+      description: localJobData.value.description || null,
+      notes: localJobData.value.notes || null,
     }
 
-    const result = await jobRestService.updateJob(props.jobData.id, updateData)
+    // Use Zodios API to update the job
+    const updatedJob = await api.job_rest_jobs_update({
+      params: { job_id: props.jobData.id },
+      body: updateData,
+    })
 
-    if (
-      result.success &&
-      result.data &&
-      typeof result.data === 'object' &&
-      'id' in result.data &&
-      'job_number' in result.data
-    ) {
-      const safeJobData: JobData = {
-        id: String((result.data as { id: unknown }).id ?? ''),
-        name: (result.data as { name?: string }).name ?? '',
-        job_number: Number((result.data as { job_number: unknown }).job_number ?? 0),
-        client_id: (result.data as { client_id?: string }).client_id ?? '',
-        client_name: (result.data as { client_name?: string }).client_name ?? '',
-        description: (result.data as { description?: string | null }).description ?? '',
-        order_number: (result.data as { order_number?: string | null }).order_number ?? '',
-        notes: (result.data as { notes?: string | null }).notes ?? '',
-        contact_id: (result.data as { contact_id?: string | null }).contact_id ?? '',
-        contact_name: (result.data as { contact_name?: string | null }).contact_name ?? '',
-        job_status: (result.data as { job_status?: string }).job_status ?? '',
-        pricing_methodology:
-          (result.data as { pricing_methodology?: 'fixed_price' | 'time_materials' })
-            .pricing_methodology ?? 'fixed_price',
-        created_at: (result.data as { created_at?: string }).created_at ?? '',
-        updated_at: (result.data as { updated_at?: string }).updated_at ?? '',
-
-        complex_job: (result.data as { complex_job?: boolean }).complex_job,
-        delivery_date: (result.data as { delivery_date?: string | null }).delivery_date,
-        quote_acceptance_date: (result.data as { quote_acceptance_date?: string | null })
-          .quote_acceptance_date,
-        quoted: (result.data as { quoted?: boolean }).quoted,
-        invoiced: (result.data as { invoiced?: boolean }).invoiced,
-        paid: (result.data as { paid?: boolean }).paid,
-        charge_out_rate: (result.data as { charge_out_rate?: string }).charge_out_rate,
-        latest_estimate: (
-          result.data as { latest_estimate?: import('@/schemas/costing.schemas').CostSet }
-        ).latest_estimate,
-        latest_quote: (
-          result.data as { latest_quote?: import('@/schemas/costing.schemas').CostSet }
-        ).latest_quote,
-        latest_actual: (
-          result.data as { latest_actual?: import('@/schemas/costing.schemas').CostSet }
-        ).latest_actual,
-        quote_sheet: (result.data as { quote_sheet?: import('@/schemas/job.schemas').QuoteSheet })
-          .quote_sheet,
-        company_defaults: (
-          result.data as { company_defaults?: import('@/schemas/job.schemas').CompanyDefaults }
-        ).company_defaults,
-        events: (result.data as { events?: import('@/schemas/job.schemas').JobEvent[] }).events,
-      }
-      emit('job-updated', safeJobData)
-      emit('close')
-    } else {
-      throw new Error('Failed to update job')
-    }
+    emit('job-updated', updatedJob)
+    emit('close')
   } catch (error) {
-    debugLog('Error saving job:', error)
+    console.error('Error saving job:', error)
     alert('Failed to save job. Please try again.')
   } finally {
     isLoading.value = false

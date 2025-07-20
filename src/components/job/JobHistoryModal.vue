@@ -58,7 +58,14 @@
             </div>
           </div>
 
-          <div v-if="events.length === 0" class="text-center text-gray-500 py-8">
+          <div v-if="isLoadingEvents" class="text-center text-gray-500 py-8">
+            <div class="flex items-center justify-center gap-2">
+              <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              Loading job events, please wait
+            </div>
+          </div>
+
+          <div v-else-if="!events || events.length === 0" class="text-center text-gray-500 py-8">
             No events recorded yet.
           </div>
         </div>
@@ -79,7 +86,6 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { JobEvent } from '@/services/job-rest.service'
 import {
   Dialog,
   DialogContent,
@@ -88,12 +94,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import type { JobEvent } from '@/api/local/schemas'
 
 interface Props {
   jobId: string
   events: JobEvent[]
   isOpen: boolean
   loading?: boolean
+  isLoadingEvents?: boolean
 }
 
 const props = defineProps<Props>()

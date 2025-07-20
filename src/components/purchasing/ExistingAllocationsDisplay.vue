@@ -77,25 +77,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Package, MapPin, History } from 'lucide-vue-next'
-import type { PurchaseOrderLine } from '@/types/purchasing'
+import { schemas } from '@/api/generated/api'
+import { z } from 'zod'
 
-interface Props {
-  existingAllocations: Record<string, ExistingAllocation[]>
+type PurchaseOrderLine = z.infer<typeof schemas.PurchaseOrderLine>
+type AllocationItem = z.infer<typeof schemas.AllocationItem>
+
+const props = defineProps<{
+  existingAllocations: Record<string, AllocationItem[]>
   lines: PurchaseOrderLine[]
-}
-
-interface ExistingAllocation {
-  quantity: number
-  type: string
-  job_id: string
-  job_name: string
-  allocation_date?: string
-  description?: string
-  retail_rate?: number
-  stock_location?: string
-}
-
-const props = defineProps<Props>()
+}>()
 
 const hasExistingAllocations = computed(() => {
   const hasKeys = Object.keys(props.existingAllocations).length > 0
@@ -115,7 +106,7 @@ const getLineDescription = (lineId: string): string => {
   return line ? line.description : `Unknown Line (ID: ${lineId})`
 }
 
-const getTotalAllocated = (allocations: ExistingAllocation[]): number => {
+const getTotalAllocated = (allocations: AllocationItem[]): number => {
   return allocations.reduce((sum, alloc) => sum + alloc.quantity, 0)
 }
 

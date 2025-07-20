@@ -2,13 +2,13 @@ import { ref, computed, watch } from 'vue'
 import { useJobsStore } from '@/stores/jobs'
 import type { JobEvent } from '@/schemas/job.schemas'
 import { useJobData } from '@/composables/useJobData'
-import { jobRestService } from '@/services/job-rest.service'
 import type { Ref } from 'vue'
 import { debugLog } from '@/utils/debug'
+import { api } from '../api/generated/api'
 
 export function useJobEvents(jobId: string | Ref<string | null>) {
   const jobsStore = useJobsStore()
-  const { jobData } = useJobData(jobId)
+  const { jobData, jobEvents: dataEvents, loadJob } = useJobData(jobId)
   const loading = ref(false)
   const error = ref<string | null>(null)
   const jobEvents = ref<JobEvent[]>([])
@@ -18,16 +18,12 @@ export function useJobEvents(jobId: string | Ref<string | null>) {
   function loadEvents() {
     const id = getJobId()
     debugLog('[useJobEvents] loadEvents called. jobId:', id)
-    if (jobData.value && Array.isArray(jobData.value.events)) {
+    if (dataEvents.value && Array.isArray(dataEvents.value)) {
+      jobEvents.value = [...dataEvents.value]
+      debugLog('[useJobEvents] Loaded events from useJobData:', jobEvents.value)
+    } else if (jobData.value && Array.isArray(jobData.value.events)) {
       jobEvents.value = [...jobData.value.events]
       debugLog('[useJobEvents] Loaded events from jobData:', jobEvents.value)
-    } else if (
-      jobData.value &&
-      Array.isArray(jobData.value.events) === false &&
-      Array.isArray(jobData.value.events) !== undefined
-    ) {
-      jobEvents.value = []
-      debugLog('[useJobEvents] No events found in jobData, set to empty array.')
     } else {
       const job = id ? jobsStore.getJobById(id) : null
       jobEvents.value = job?.events ? [...job.events] : []
@@ -35,13 +31,34 @@ export function useJobEvents(jobId: string | Ref<string | null>) {
     }
   }
 
+  // Função para inicializar carregamento dos eventos
+  async function initializeEvents() {
+    const id = getJobId()
+    if (id && (!dataEvents.value || dataEvents.value.length === 0)) {
+      debugLog('[useJobEvents] Initializing events by loading job data')
+      await loadJob()
+    }
+  }
+
   watch(
-    () => jobData.value,
-    (val) => {
-      debugLog('[useJobEvents] jobData changed:', val)
+    [() => jobData.value, () => dataEvents.value],
+    () => {
+      debugLog('[useJobEvents] jobData or dataEvents changed')
       loadEvents()
     },
     { immediate: true, deep: true },
+  )
+
+  // Inicializar eventos na primeira execução
+  watch(
+    () => getJobId(),
+    async (id) => {
+      if (id) {
+        debugLog('[useJobEvents] JobId changed, initializing events:', id)
+        await initializeEvents()
+      }
+    },
+    { immediate: true },
   )
 
   async function addEvent(description: string) {
@@ -57,15 +74,18 @@ export function useJobEvents(jobId: string | Ref<string | null>) {
     error.value = null
     try {
       debugLog('[useJobEvents] Adding event via API:', { id, description })
-      const response = await jobRestService.addJobEvent(id, description)
+
+      const response = await api.job_rest_jobs_events_create(
+        { description },
+        {
+          params: { job_id: id },
+        },
+      )
       debugLog('[useJobEvents] API response:', response)
       if (response.success) {
-        if (typeof jobData.value?.reload === 'function') {
-          debugLog('[useJobEvents] Calling jobData.reload() after event add')
-          await jobData.value.reload()
-        }
-        loadEvents()
-        debugLog('[useJobEvents] Event added and events reloaded.')
+        // Recarregar os dados do job para obter os eventos atualizados
+        await loadJob()
+        debugLog('[useJobEvents] Event added and job data reloaded.')
       } else {
         debugLog('[useJobEvents] Failed to add event:', response.error)
         throw new Error(response.error || 'Failed to add event')

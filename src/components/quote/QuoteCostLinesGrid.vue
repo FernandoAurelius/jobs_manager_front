@@ -131,25 +131,20 @@
 </template>
 
 <script setup lang="ts">
-interface CostLine {
-  id?: number
-  kind: string
-  desc: string
-  quantity: number
-  unit_cost: number
-  unit_rev: number
-  ext_refs?: unknown
-  meta?: unknown
-}
+import { schemas } from '@/api/generated/api'
+import { z } from 'zod'
 
-interface Props {
-  costLines: CostLine[]
-  isLoading?: boolean
-}
+type CostLine = z.infer<typeof schemas.CostLine>
 
-withDefaults(defineProps<Props>(), {
-  isLoading: false,
-})
+withDefaults(
+  defineProps<{
+    costLines: CostLine[]
+    isLoading?: boolean
+  }>(),
+  {
+    isLoading: false,
+  },
+)
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat('en-US', {

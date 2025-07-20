@@ -11,7 +11,8 @@
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix",
     "format": "prettier --write src/",
-    "prepare": "simple-git-hooks"
+    "prepare": "simple-git-hooks",
+    "gen:api": "openapi-zod-client schema.yml -o src/api/generated/api.ts --export-schemas"
   },
   "dependencies": {
     "@internationalized/date": "^3.8.2",
@@ -32,6 +33,7 @@
     "event-source-polyfill": "^1.0.31",
     "js-cookie": "^3.0.5",
     "lucide-vue-next": "^0.513.0",
+    "openapi-zod-client": "^1.18.3",
     "pdf-vue3": "^1.0.12",
     "pinia": "^3.0.1",
     "quill": "^2.0.3",

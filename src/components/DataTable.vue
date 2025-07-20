@@ -18,6 +18,7 @@ const props = defineProps<{
   data: TData[]
   pageSize?: number
   hideFooter?: boolean
+  isLoading?: boolean
 }>()
 
 const emit = defineEmits<{ add: []; rowClick: [TData] }>()
@@ -86,8 +87,16 @@ const colCount = computed(() => props.columns.length)
           </TableRow>
         </template>
         <template v-else>
-          <TableRow>
-            <TableCell :colspan="colCount" class="h-24 text-center">No results.</TableCell>
+          <TableRow v-if="!isLoading">
+            <TableCell :colspan="colCount" class="h-24 text-center">No results found.</TableCell>
+          </TableRow>
+          <TableRow v-if="isLoading">
+            <TableCell :colspan="colCount" class="h-24 text-center">
+              <div class="flex items-center justify-center gap-2">
+                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                Loading data, please wait
+              </div>
+            </TableCell>
           </TableRow>
         </template>
       </TableBody>

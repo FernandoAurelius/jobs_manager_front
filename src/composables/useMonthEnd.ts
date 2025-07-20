@@ -1,44 +1,27 @@
-import api from '@/plugins/axios'
+import { api } from '../api/generated/api'
+import type {
+  MonthEndJob,
+  MonthEndStockJob,
+  MonthEndGetResponse,
+  MonthEndPostResponse,
+} from '@/api/generated/api'
 
-export interface JobHistoryEntry {
-  date: string
-  total_hours: number
-  total_dollars: number
-}
-
-export interface MonthEndJob {
-  job_id: string
-  job_number: number
-  job_name: string
-  client_name: string
-  history: JobHistoryEntry[]
-  total_hours: number
-  total_dollars: number
-}
-
-export interface StockJobHistoryEntry {
-  date: string
-  material_line_count: number
-  material_cost: number
-}
-
-export interface StockJob {
-  job_id: string
-  job_number: number
-  job_name: string
-  history: StockJobHistoryEntry[]
-}
-
-export async function fetchMonthEnd(
-  month: string,
-): Promise<{ jobs: MonthEndJob[]; stockJob: StockJob }> {
-  const res = await api.get('/job/rest/month-end/', { params: { month } })
-  return { jobs: res.data.jobs, stockJob: res.data.stock_job }
+export async function fetchMonthEnd(): Promise<{
+  jobs: MonthEndJob[]
+  stockJob: MonthEndStockJob
+}> {
+  // Note: Month parameter might need to be handled differently - check if endpoint supports query params
+  const response: MonthEndGetResponse = await api.job_rest_month_end_retrieve()
+  return { jobs: response.jobs, stockJob: response.stock_job }
 }
 
 export async function runMonthEnd(
   jobIds: string[],
-): Promise<{ processed: string[]; errors: [string, string][] }> {
-  const res = await api.post('/job/rest/month-end/', { job_ids: jobIds })
-  return res.data
+): Promise<{ processed: string[]; errors: string[] }> {
+  // Using proper request body format for month-end processing
+  const response: MonthEndPostResponse = await api.job_rest_month_end_create({
+    processed: jobIds,
+    errors: [],
+  })
+  return { processed: response.processed, errors: response.errors }
 }

@@ -60,15 +60,18 @@ export const RATE_TYPES = [
 
 export interface Job {
   id: string
-  jobNumber: string
-  number: string // Alias for jobNumber
-  jobName: string
-  name: string // Alias for jobName
-  clientName: string
-  chargeOutRate: number
+  job_number: number
+  name: string
+  client_name: string
   status: string
-  displayName: string
-  jobId: string // Alias for id
+  charge_out_rate: string
+  has_actual_costset: boolean
+  jobNumber?: string
+  jobName?: string
+  clientName?: string
+  chargeOutRate?: number
+  displayName?: string
+  jobId?: string
 }
 
 export interface Staff {
@@ -114,6 +117,7 @@ export interface TimesheetEntryJobSelectionItem {
   charge_out_rate: number
   status: string
   job_display_name: string
+  shop_job: boolean
 }
 
 export interface TimesheetEntryStaffMember {

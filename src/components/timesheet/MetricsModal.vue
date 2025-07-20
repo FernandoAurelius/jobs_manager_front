@@ -137,13 +137,16 @@ import {
   formatCurrency,
   type DailyTimesheetSummary,
 } from '@/services/daily-timesheet.service'
+import { schemas } from '@/api/generated/api'
+import type { z } from 'zod'
 
-interface Props {
+// Type alias for schema-based type (replacing deprecated interface)
+type DailyTimesheetSummary = z.infer<typeof schemas.DailyTimesheetSummary>
+
+defineProps<{
   open: boolean
   summary: DailyTimesheetSummary
-}
-
-defineProps<Props>()
+}>()
 
 const emit = defineEmits<{
   close: []
